@@ -6,104 +6,63 @@ namespace EasySave.Views
 {
     public class MainView
     {
-        // La vue possède le ViewModel pour lui donner des ordres
         private BackupViewModel viewModel;
+        private bool isFrench = true;
 
         public MainView()
         {
             viewModel = new BackupViewModel();
         }
 
-        // Boucle principale du menu
         public void ShowMenu()
         {
+            // Choix de la langue au départ
+            Console.WriteLine("Choose Language / Choisissez la langue :");
+            Console.WriteLine("1. English\n2. Français");
+            isFrench = Console.ReadLine() == "2";
+
             while (true)
             {
                 Console.Clear();
-                Console.WriteLine("=== EASYSAVE V1.0 ===");
-                Console.WriteLine("1. Create a Backup Job");
-                Console.WriteLine("2. Execute a Backup Job");
-                Console.WriteLine("3. Exit");
-                Console.Write("\nChoose an option: ");
+                Console.WriteLine(isFrench ? "=== EASYSAVE V1.0 ===" : "=== EASYSAVE V1.0 ===");
+                Console.WriteLine(isFrench ? "1. Créer un travail" : "1. Create a Backup Job");
+                Console.WriteLine(isFrench ? "2. Exécuter un travail" : "2. Execute a Backup Job");
+                Console.WriteLine(isFrench ? "3. Quitter" : "3. Exit");
 
                 string choice = Console.ReadLine();
-
-                switch (choice)
-                {
-                    case "1":
-                        CreateJobView();
-                        break;
-                    case "2":
-                        ExecuteJobView();
-                        break;
-                    case "3":
-                        return; // Quitte le programme
-                    default:
-                        Console.WriteLine("Invalid choice. Press Enter to try again.");
-                        Console.ReadLine();
-                        break;
-                }
+                if (choice == "1") ShowCreate();
+                else if (choice == "2") ShowExecute();
+                else if (choice == "3") break;
             }
         }
 
-        // L'écran pour créer une sauvegarde
-        private void CreateJobView()
+        private void ShowCreate()
         {
-            Console.Clear();
-            Console.WriteLine("--- CREATE BACKUP JOB ---");
+            Console.WriteLine(isFrench ? "Nom :" : "Name :");
+            string n = Console.ReadLine();
+            Console.WriteLine(isFrench ? "Source :" : "Source :");
+            string s = Console.ReadLine();
+            Console.WriteLine(isFrench ? "Cible :" : "Target :");
+            string t = Console.ReadLine();
+            Console.WriteLine(isFrench ? "Type (1: Complet, 2: Diff) :" : "Type (1: Full, 2: Diff) :");
+            BackupType tp = Console.ReadLine() == "2" ? BackupType.Differential : BackupType.Full;
 
-            Console.Write("Name: ");
-            string name = Console.ReadLine();
+            viewModel.AddJob(n, s, t, tp);
+        }
 
-            Console.Write("Source Directory: ");
-            string source = Console.ReadLine();
+        private void ShowExecute()
+        {
+            for (int i = 0; i < viewModel.BackupJobs.Count; i++)
+                Console.WriteLine($"{i + 1}. {viewModel.BackupJobs[i].Name}");
 
-            Console.Write("Target Directory: ");
-            string target = Console.ReadLine();
+            Console.WriteLine(isFrench ? "Sélectionnez (ex: 1) :" : "Select (ex: 1) :");
+            if (int.TryParse(Console.ReadLine(), out int idx))
+                viewModel.ExecuteJob(idx - 1);
 
-            Console.Write("Type (1: Full, 2: Differential): ");
-            string typeChoice = Console.ReadLine();
-            BackupType type = (typeChoice == "2") ? BackupType.Differential : BackupType.Full;
-
-            // On envoie les infos au ViewModel pour qu'il enregistre !
-            viewModel.AddJob(name, source, target, type);
-
-            Console.WriteLine("\nPress Enter to return to menu.");
             Console.ReadLine();
         }
 
-        // L'écran pour lancer une sauvegarde
-        private void ExecuteJobView()
-        {
-            Console.Clear();
-            Console.WriteLine("--- EXECUTE BACKUP JOB ---");
-
-            if (viewModel.BackupJobs.Count == 0)
-            {
-                Console.WriteLine("No jobs available. Please create one first.");
-            }
-            else
-            {
-                // On affiche la liste des sauvegardes
-                for (int i = 0; i < viewModel.BackupJobs.Count; i++)
-                {
-                    Console.WriteLine($"{i + 1}. {viewModel.BackupJobs[i].Name}");
-                }
-
-                Console.Write("\nSelect a job number to execute: ");
-                if (int.TryParse(Console.ReadLine(), out int index) && index > 0 && index <= viewModel.BackupJobs.Count)
-                {
-                    // On demande au ViewModel de lancer la sauvegarde choisie
-                    viewModel.ExecuteJob(index - 1);
-                }
-                else
-                {
-                    Console.WriteLine("Invalid selection.");
-                }
-            }
-
-            Console.WriteLine("\nPress Enter to return to menu.");
-            Console.ReadLine();
-        }
+        // Utile pour la ligne de commande plus tard
+        public BackupViewModel GetViewModel() => viewModel;
     }
 }

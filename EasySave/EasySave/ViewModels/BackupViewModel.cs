@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using EasySave.Models;
 using EasyLog;
 
@@ -8,113 +9,138 @@ namespace EasySave.ViewModels
 {
     public class BackupViewModel
     {
-        // La liste qui va contenir les 5 travaux de sauvegarde maximum
         public List<BackupJob> BackupJobs { get; set; }
-
-        // Le modèle qui gère l'état en temps réel
         public BackupState CurrentState { get; set; }
+        public string Language { get; set; } = "EN"; // Par défaut
+
+        private string saveDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "EasySave");
+        private string stateFilePath;
+        private string jobsFilePath;
 
         public BackupViewModel()
         {
-            // Initialisation des listes et de l'état quand le programme démarre
+            stateFilePath = Path.Combine(saveDir, "state.json");
+            jobsFilePath = Path.Combine(saveDir, "jobs.json");
+
             BackupJobs = new List<BackupJob>();
             CurrentState = new BackupState();
+            LoadJobs();
         }
 
-        // Méthode pour ajouter un nouveau travail de sauvegarde à notre liste
+        private void LoadJobs()
+        {
+            if (File.Exists(jobsFilePath))
+            {
+                try
+                {
+                    string json = File.ReadAllText(jobsFilePath);
+                    BackupJobs = JsonSerializer.Deserialize<List<BackupJob>>(json) ?? new List<BackupJob>();
+                }
+                catch { BackupJobs = new List<BackupJob>(); }
+            }
+        }
+
+        private void SaveJobs()
+        {
+            if (!Directory.Exists(saveDir)) Directory.CreateDirectory(saveDir);
+            File.WriteAllText(jobsFilePath, JsonSerializer.Serialize(BackupJobs, new JsonSerializerOptions { WriteIndented = true }));
+        }
+
         public void AddJob(string name, string source, string target, BackupType type)
         {
             if (BackupJobs.Count < 5)
             {
-                var newJob = new BackupJob
-                {
-                    Name = name,
-                    SourceDirectory = source,
-                    TargetDirectory = target,
-                    Type = type
-                };
-                BackupJobs.Add(newJob);
-                Console.WriteLine($"[SUCCESS] Job '{name}' added successfully !");
-            }
-            else
-            {
-                Console.WriteLine("[ERROR] You can only create up to 5 backup jobs.");
+                BackupJobs.Add(new BackupJob { Name = name, SourceDirectory = source, TargetDirectory = target, Type = type });
+                SaveJobs();
             }
         }
 
-
-        // Le  moteur de copie de fichiers
         public void ExecuteJob(int index)
         {
-            // On vérifie que l'index demandé existe bien dans la liste
-            if (index >= 0 && index < BackupJobs.Count)
+            if (index < 0 || index >= BackupJobs.Count) return;
+            BackupJob job = BackupJobs[index];
+
+            Console.WriteLine($"\n--- Lancement de la sauvegarde : {job.Name} ---");
+            Console.WriteLine($"Source : {job.SourceDirectory}");
+            Console.WriteLine($"Cible  : {job.TargetDirectory}");
+
+            if (!Directory.Exists(job.SourceDirectory))
             {
-                BackupJob job = BackupJobs[index];
-                Console.WriteLine($"\n--- Starting Backup : {job.Name} ---");
-                Console.WriteLine($"Source: {job.SourceDirectory}");
-                Console.WriteLine($"Target: {job.TargetDirectory}");
-
-                //  Vérif si le dossier source existe vraiment
-                if (!Directory.Exists(job.SourceDirectory))
-                {
-                    Console.WriteLine("[ERROR] The source directory does not exist.");
-                    return;
-                }
-
-                // Créer le dossier cible s'il n'existe pas
-                if (!Directory.Exists(job.TargetDirectory))
-                {
-                    Directory.CreateDirectory(job.TargetDirectory);
-                }
-
-                //  Récupérer tous les fichiers du dossier source
-                string[] files = Directory.GetFiles(job.SourceDirectory, "*", SearchOption.AllDirectories);
-                Console.WriteLine($"Found {files.Length} files to copy...");
-
-                // Boucle de copie pour chaque fichier
-                foreach (string file in files)
-                {
-                    // Calculer le chemin exact où le fichier doit aller
-                    string relativePath = file.Substring(job.SourceDirectory.Length + 1);
-                    string targetFilePath = Path.Combine(job.TargetDirectory, relativePath);
-                    string targetDirPath = Path.GetDirectoryName(targetFilePath);
-
-                    // Créer le sous-dossier cible s'il manque
-                    if (!Directory.Exists(targetDirPath))
-                    {
-                        Directory.CreateDirectory(targetDirPath);
-                    }
-
-                    // Récupérer la taille du fichier pour le Log
-                    FileInfo fileInfo = new FileInfo(file);
-                    long fileSize = fileInfo.Length;
-
-                    // Lancer le chronomètre
-                    var watch = System.Diagnostics.Stopwatch.StartNew();
-
-                    try
-                    {
-
-                        File.Copy(file, targetFilePath, true);
-                        watch.Stop();
-
-                        // Envoyer les infos à ta DLL EasyLog
-                        LogManager.SaveLog(job.Name, file, targetFilePath, fileSize, watch.Elapsed.TotalMilliseconds);
-
-                        Console.WriteLine($"Copied: {relativePath}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[ERROR] Failed to copy {relativePath}: {ex.Message}");
-                    }
-                }
-
-                Console.WriteLine($"--- Backup {job.Name} Finished ! ---\n");
+                Console.WriteLine($"[ERREUR] Le dossier source n'existe pas ou le chemin est faux !");
+                return;
             }
-            else
+
+            if (!Directory.Exists(job.TargetDirectory))
             {
-                Console.WriteLine("[ERROR] Backup job not found at this index.");
+                Console.WriteLine("Création du dossier cible automatique...");
+                Directory.CreateDirectory(job.TargetDirectory);
             }
+
+            string[] allFiles = Directory.GetFiles(job.SourceDirectory, "*", SearchOption.AllDirectories);
+            Console.WriteLine($"{allFiles.Length} fichier(s) trouvé(s) !");
+
+            // --- LOGIQUE DIFFÉRENTIELLE ---
+            List<string> filesToCopy = new List<string>();
+            foreach (var f in allFiles)
+            {
+                if (job.Type == BackupType.Full)
+                {
+                    filesToCopy.Add(f);
+                }
+                else
+                {
+                    string relative = f.Substring(job.SourceDirectory.Length + 1);
+                    string target = Path.Combine(job.TargetDirectory, relative);
+                    if (!File.Exists(target) || File.GetLastWriteTime(f) > File.GetLastWriteTime(target))
+                        filesToCopy.Add(f);
+                }
+            }
+
+            Console.WriteLine($"{filesToCopy.Count} fichier(s) à copier (après vérification Différentielle).");
+
+            CurrentState.Name = job.Name;
+            CurrentState.State = StateStatus.Active;
+            CurrentState.TotalFilesToCopy = filesToCopy.Count;
+            CurrentState.NbFilesLeftToDo = filesToCopy.Count;
+            CurrentState.Progression = 0;
+            SaveState();
+
+            foreach (string file in filesToCopy)
+            {
+                string relative = file.Substring(job.SourceDirectory.Length + 1);
+                string targetPath = Path.Combine(job.TargetDirectory, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(targetPath));
+
+                CurrentState.CurrentSourceFilePath = file;
+                CurrentState.CurrentTargetFilePath = targetPath;
+                SaveState();
+
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                File.Copy(file, targetPath, true);
+                watch.Stop();
+
+                LogManager.SaveLog(job.Name, file, targetPath, new FileInfo(file).Length, watch.Elapsed.TotalMilliseconds);
+
+                CurrentState.NbFilesLeftToDo--;
+                if (filesToCopy.Count > 0)
+                    CurrentState.Progression = (int)((1.0 - (double)CurrentState.NbFilesLeftToDo / filesToCopy.Count) * 100);
+                SaveState();
+
+
+                Console.WriteLine($"Copié : {relative}");
+            }
+
+            CurrentState.State = StateStatus.Inactive;
+            CurrentState.Progression = 100;
+            SaveState();
+
+            Console.WriteLine($"--- Sauvegarde terminée ! ---");
+        }
+
+        private void SaveState()
+        {
+            if (!Directory.Exists(saveDir)) Directory.CreateDirectory(saveDir);
+            File.WriteAllText(stateFilePath, JsonSerializer.Serialize(CurrentState, new JsonSerializerOptions { WriteIndented = true }));
         }
     }
 }
