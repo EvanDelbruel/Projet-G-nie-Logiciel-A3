@@ -1,6 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using EasySave.Views;
+using EasySave.Controllers;
 
 namespace EasySave
 {
@@ -8,26 +7,8 @@ namespace EasySave
     {
         static void Main(string[] args)
         {
-            MainView view = new MainView();
-
-            if (args.Length > 0)
-            {
-                // On récupère l'argument (ex: "1-3")
-                string input = args[0];
-
-                // NOUVEAU : On utilise la méthode de la vue pour éviter de copier-coller le code de parsing
-                List<int> indexes = view.ParseSelection(input);
-
-                foreach (int idx in indexes)
-                {
-                    view.GetViewModel().ExecuteJob(idx);
-                }
-                Console.WriteLine("Command Line Execution Finished.");
-            }
-            else
-            {
-                view.ShowMenu();
-            }
+            MainController app = new MainController();
+            app.Start(args); // On lance le contrôleur en lui passant les arguments éventuels
         }
     }
 }
