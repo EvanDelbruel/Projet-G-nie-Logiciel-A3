@@ -18,6 +18,7 @@ namespace EasySave.Models
         public long TotalFilesSize { get; set; }
         public int NbFilesLeftToDo { get; set; }
         public int Progression { get; set; }
+        public long RemainingFilesSize { get; set; }
         public string CurrentSourceFilePath { get; set; }
         public string CurrentTargetFilePath { get; set; }
 
@@ -28,6 +29,11 @@ namespace EasySave.Models
             State = StateStatus.Inactive;
             CurrentSourceFilePath = string.Empty;
             CurrentTargetFilePath = string.Empty;
+            TotalFilesToCopy = 0;
+            TotalFilesSize = 0;
+            NbFilesLeftToDo = 0;
+            RemainingFilesSize = 0;
+            Progression = 0;
         }
     }
 }
