@@ -2,13 +2,13 @@ using System;
 
 namespace EasySave.Views
 {
-    // Cette classe gère tout ce qui s'affiche à l'écran (La Vue)
+    // affichage console
     public class VueConsole
     {
-        // On stocke la langue choisie par l'utilisateur (FR par défaut)
+        // langue par defaut
         public string LangueActuelle { get; set; } = "FR";
 
-        // Méthode pour demander la langue au tout début
+        // choix de la langue au lancement
         public void ChoisirLangue()
         {
             Console.WriteLine("Choose your language / Choisissez votre langue :");
@@ -18,7 +18,7 @@ namespace EasySave.Views
 
             string choix = Console.ReadLine();
 
-            // Si l'utilisateur tape 2, on passe en anglais. Sinon on reste en français.
+            // check du choix
             if (choix == "2")
             {
                 LangueActuelle = "EN";
@@ -28,11 +28,10 @@ namespace EasySave.Views
                 LangueActuelle = "FR";
             }
 
-            // On nettoie la console pour que ce soit propre
-            Console.Clear();
+            Console.Clear(); // clear console
         }
 
-        // Méthode pour afficher le menu principal selon la langue
+        // affiche le menu fr ou en
         public void AfficherMenuPrincipal()
         {
             if (LangueActuelle == "FR")
@@ -40,7 +39,8 @@ namespace EasySave.Views
                 Console.WriteLine("\n=== MENU PRINCIPAL EASYSAVE ===");
                 Console.WriteLine("1. Créer un travail de sauvegarde");
                 Console.WriteLine("2. Afficher les travaux de sauvegarde");
-                Console.WriteLine("3. Quitter");
+                Console.WriteLine("3. Exécuter un travail de sauvegarde");
+                Console.WriteLine("4. Quitter");
                 Console.Write("Votre choix : ");
             }
             else
@@ -48,18 +48,19 @@ namespace EasySave.Views
                 Console.WriteLine("\n=== EASYSAVE MAIN MENU ===");
                 Console.WriteLine("1. Create a backup job");
                 Console.WriteLine("2. Show backup jobs");
-                Console.WriteLine("3. Exit");
+                Console.WriteLine("3. Execute a backup job");
+                Console.WriteLine("4. Exit");
                 Console.Write("Your choice : ");
             }
         }
 
-        // Méthode simple pour lire ce que l'utilisateur tape
+        // recupere la saisie
         public string LireSaisieUtilisateur()
         {
             return Console.ReadLine();
         }
 
-        // Méthode pratique pour afficher un message d'erreur ou de succès dans la bonne langue
+        // affiche le bon message selon la langue selectionnee
         public void AfficherMessage(string messageFr, string messageEn)
         {
             if (LangueActuelle == "FR")

@@ -2,16 +2,16 @@ using System;
 
 namespace EasySave.Models
 {
-    // Cette classe représente un travail de sauvegarde (le Modèle)
+    // classe pour stocker les infos d'une sauvegarde
     public class BackupJob
     {
-        // Propriétés (Encapsulation basique)
+        // les données du job
         public string Name { get; set; }
         public string SourceDirectory { get; set; }
         public string TargetDirectory { get; set; }
-        public string Type { get; set; } // "Complete" ou "Differentielle"
+        public string Type { get; set; } // Complet ou Différentiel
 
-        // Constructeur pour initialiser un travail de sauvegarde facilement
+        // le constructeur
         public BackupJob(string name, string sourceDirectory, string targetDirectory, string type)
         {
             Name = name;
@@ -20,7 +20,7 @@ namespace EasySave.Models
             Type = type;
         }
 
-        // On redéfinit ToString() pour afficher facilement les infos, comme tu as appris à le faire
+        // affiche les infos sous forme de texte
         public override string ToString()
         {
             return $"[{Name}] Type: {Type} | Source: {SourceDirectory} => Cible: {TargetDirectory}";
