@@ -2,16 +2,18 @@ using System;
 
 namespace EasySave.Models
 {
-    // Cette classe représente un travail de sauvegarde (le Modèle)
     public class BackupJob
     {
-        // Propriétés (Encapsulation basique)
+        // Properties of the backup job
         public string Name { get; set; }
         public string SourceDirectory { get; set; }
         public string TargetDirectory { get; set; }
-        public string Type { get; set; } // "Complete" ou "Differentielle"
+        public string Type { get; set; }
 
-        // Constructeur pour initialiser un travail de sauvegarde facilement
+        // Empty constructor required for JSON deserialization
+        public BackupJob() { }
+
+        // Constructor used when creating a new job via the menu
         public BackupJob(string name, string sourceDirectory, string targetDirectory, string type)
         {
             Name = name;
@@ -20,10 +22,10 @@ namespace EasySave.Models
             Type = type;
         }
 
-        // On redéfinit ToString() pour afficher facilement les infos, comme tu as appris à le faire
+        // Formats the job info for console display
         public override string ToString()
         {
-            return $"[{Name}] Type: {Type} | Source: {SourceDirectory} => Cible: {TargetDirectory}";
+            return $"{Name} | Source: {SourceDirectory} | Target: {TargetDirectory} | Type: {Type}";
         }
     }
 }
