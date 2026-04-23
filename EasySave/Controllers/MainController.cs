@@ -5,7 +5,7 @@ using System.Text.Json;
 using EasySave.Models;
 using EasySave.Views;
 using EasySave.Services;
-
+using EasyLog;
 namespace EasySave.Controllers
 {
     public class MainController
@@ -19,6 +19,9 @@ namespace EasySave.Controllers
         {
             view = new ConsoleView();
             jobList = LoadJobs();
+            // Explicitly trigger the LoggerService Singleton instance at startup.
+            // This ensures the "Logs" directory and "state.json" are initialized immediately.
+            _ = LoggerService.Instance;
         }
 
         public void Start(string[] args)

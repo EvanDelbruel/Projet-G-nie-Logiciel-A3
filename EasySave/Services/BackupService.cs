@@ -1,22 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Diagnostics;
-using System.Linq;
-using EasySave.Models;
-using EasyLog.Services;
+﻿using EasyLog;
 using EasyLog.Models;
+using EasySave.Models;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+// using EasySave.Models;
 
 namespace EasySave.Services
 {
     public class BackupService
     {
-        private LoggerService logger = new LoggerService();
-
-        // We now pass the active job AND the list of all jobs to generate the full state array
         public void ExecuteBackup(BackupJob activeJob, List<BackupJob> allJobs)
         {
-            // Directory verification
+            // Step 1: Verify source and target directories
             if (!Directory.Exists(activeJob.SourceDirectory))
             {
                 throw new DirectoryNotFoundException($"Source directory not found: {activeJob.SourceDirectory}");
@@ -26,52 +24,21 @@ namespace EasySave.Services
                 Directory.CreateDirectory(activeJob.TargetDirectory);
             }
 
-            // Retrieve all files
-            string[] files = Directory.GetFiles(activeJob.SourceDirectory, "*.*", SearchOption.AllDirectories);
-            if (files.Length == 0) throw new Exception("Source directory is empty. No backup required.");
-
-            // Prepare variables for state.json
-            long totalSize = 0;
-            foreach (string f in files) totalSize += new FileInfo(f).Length;
-
-            int totalFiles = files.Length;
-            int filesProcessed = 0;
+            string[] allFiles = Directory.GetFiles(activeJob.SourceDirectory, "*.*", SearchOption.AllDirectories);
             bool isDifferential = activeJob.Type.Equals("Differential", StringComparison.OrdinalIgnoreCase);
 
-            Console.WriteLine($"Copy progress: {totalFiles} file(s) detected...");
+            // Step 2: Pre-filter files to calculate accurate metrics for the state file
+            List<string> filesToCopy = new List<string>();
+            long totalSize = 0;
 
-            // 1. INITIALIZE THE STATE ARRAY FOR ALL JOBS
-            List<StateModel> allStates = new List<StateModel>();
-            foreach (var job in allJobs)
-            {
-                allStates.Add(new StateModel
-                {
-                    Name = job.Name,
-                    State = (job.Name == activeJob.Name) ? "Active" : "Inactive",
-                    LastActionTimestamp = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"),
-                    TotalFilesToCopy = (job.Name == activeJob.Name) ? totalFiles : 0,
-                    TotalFilesSize = (job.Name == activeJob.Name) ? totalSize : 0,
-                    NbFilesLeftToDo = (job.Name == activeJob.Name) ? totalFiles : 0,
-                    Progression = 0,
-                    CurrentSourceFile = "",
-                    CurrentTargetFile = ""
-                });
-            }
-
-            // Get a reference to the active job's state to update it easily in the loop
-            var activeState = allStates.First(s => s.Name == activeJob.Name);
-
-            // 2. COPY LOOP
-            foreach (string file in files)
+            foreach (string file in allFiles)
             {
                 string relativePath = Path.GetRelativePath(activeJob.SourceDirectory, file);
                 string destFile = Path.Combine(activeJob.TargetDirectory, relativePath);
 
-                Directory.CreateDirectory(Path.GetDirectoryName(destFile));
-
                 bool shouldCopy = true;
 
-                // Check modification date if Differential mode
+                // Differential logic: skip the file if it hasn't been modified since the last backup
                 if (isDifferential && File.Exists(destFile))
                 {
                     if (File.GetLastWriteTime(file) <= File.GetLastWriteTime(destFile))
@@ -80,42 +47,82 @@ namespace EasySave.Services
                     }
                 }
 
-                // If the file needs to be copied
                 if (shouldCopy)
                 {
-                    Stopwatch sw = Stopwatch.StartNew();
-                    File.Copy(file, destFile, true);
-                    sw.Stop();
-
-                    // Write to the daily log
-                    logger.WriteLog(new LogModel
-                    {
-                        Name = activeJob.Name,
-                        SourceFilePath = file,
-                        TargetFilePath = destFile,
-                        FileSize = new FileInfo(destFile).Length,
-                        FileTransferTime = sw.Elapsed.TotalMilliseconds,
-                        Time = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss")
-                    });
+                    filesToCopy.Add(file);
+                    totalSize += new FileInfo(file).Length;
                 }
+            }
+
+            int totalFiles = filesToCopy.Count;
+            int filesProcessed = 0;
+
+            // Step 3: Initialize the state array with accurate eligible file counts
+            List<StateModel> allStates = new List<StateModel>();
+            foreach (var job in allJobs)
+            {
+                allStates.Add(new StateModel
+                {
+                    Name = job.Name,
+                    State = (job.Name == activeJob.Name && totalFiles > 0) ? "Active" : "Inactive",
+                    LastActionTimestamp = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"),
+                    TotalFilesToCopy = (job.Name == activeJob.Name) ? totalFiles : 0,
+                    TotalFilesSize = (job.Name == activeJob.Name) ? totalSize : 0,
+                    NbFilesLeftToDo = (job.Name == activeJob.Name) ? totalFiles : 0,
+                    Progression = (totalFiles == 0 && job.Name == activeJob.Name) ? 100 : 0,
+                    CurrentSourceFile = "",
+                    CurrentTargetFile = ""
+                });
+            }
+
+            var activeState = allStates.First(s => s.Name == activeJob.Name);
+
+            // Step 4: Execute the copy loop only on eligible files
+            foreach (string file in filesToCopy)
+            {
+                string relativePath = Path.GetRelativePath(activeJob.SourceDirectory, file);
+                string destFile = Path.Combine(activeJob.TargetDirectory, relativePath);
+
+                Directory.CreateDirectory(Path.GetDirectoryName(destFile));
+
+                // Measure file transfer time accurately
+                Stopwatch sw = Stopwatch.StartNew();
+                File.Copy(file, destFile, true);
+                sw.Stop();
+
+                // Call the Singleton instance to log the action
+                LoggerService.Instance.WriteLog(new LogModel
+                {
+                    Name = activeJob.Name,
+                    SourceFilePath = file,
+                    TargetFilePath = destFile,
+                    FileSize = new FileInfo(destFile).Length,
+                    FileTransferTime = sw.Elapsed.TotalMilliseconds,
+                    Time = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss")
+                });
 
                 filesProcessed++;
 
-                // 3. REAL-TIME STATE UPDATE
+                // Update real-time state variables
                 activeState.CurrentSourceFile = file;
                 activeState.CurrentTargetFile = destFile;
                 activeState.NbFilesLeftToDo = totalFiles - filesProcessed;
                 activeState.Progression = (int)((filesProcessed / (double)totalFiles) * 100);
                 activeState.LastActionTimestamp = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
 
-                // Send the entire list to the LoggerService
-                logger.WriteState(allStates);
+                // Call the Singleton instance to update the state file
+                LoggerService.Instance.WriteState(allStates);
             }
 
-            // 4. END OF BACKUP
+            // Step 5: Finalize the state file once the job is completed
             activeState.State = "Inactive";
+            activeState.NbFilesLeftToDo = 0;
+            activeState.Progression = 100;
+            activeState.CurrentSourceFile = "";
+            activeState.CurrentTargetFile = "";
             activeState.LastActionTimestamp = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
-            logger.WriteState(allStates);
+
+            LoggerService.Instance.WriteState(allStates);
         }
     }
 }
