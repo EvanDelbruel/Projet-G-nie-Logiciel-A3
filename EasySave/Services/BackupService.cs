@@ -87,8 +87,18 @@ namespace EasySave.Services
 
                 // Measure file transfer time accurately
                 Stopwatch sw = Stopwatch.StartNew();
-                File.Copy(file, destFile, true);
-                sw.Stop();
+                double transferTimeMs;
+                try
+                {
+                    File.Copy(file, destFile, true);
+                    sw.Stop();
+                    transferTimeMs = sw.Elapsed.TotalMilliseconds;
+                }
+                catch (Exception)
+                {
+                    sw.Stop();
+                    transferTimeMs = -1; // Temps négatif si erreur de copie
+                }
 
                 // Call the Singleton instance to log the action
                 LoggerService.Instance.WriteLog(new LogModel
@@ -96,8 +106,8 @@ namespace EasySave.Services
                     Name = activeJob.Name,
                     SourceFilePath = file,
                     TargetFilePath = destFile,
-                    FileSize = new FileInfo(destFile).Length,
-                    FileTransferTime = sw.Elapsed.TotalMilliseconds,
+                    FileSize = new FileInfo(file).Length, 
+                    FileTransferTime = transferTimeMs,   
                     Time = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss")
                 });
 
