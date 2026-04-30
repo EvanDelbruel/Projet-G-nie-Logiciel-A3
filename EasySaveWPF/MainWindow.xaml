@@ -20,8 +20,8 @@
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="{Binding SettingsButtonText}" Command="{Binding SettingsCommand}" 
-                        Margin="0,0,15,0" Padding="10,5" Background="#34495E" Foreground="White" 
-                        BorderThickness="0" Cursor="Hand"/>
+                            Margin="0,0,15,0" Padding="10,5" Background="#34495E" Foreground="White" 
+                            BorderThickness="0" Cursor="Hand"/>
 
                     <ComboBox ItemsSource="{Binding AvailableLanguages}" 
                               SelectedItem="{Binding SelectedLanguage}" 
@@ -31,7 +31,7 @@
             </Grid>
         </Border>
 
-        <DataGrid Grid.Row="1" Margin="15" ItemsSource="{Binding Jobs}" SelectedItem="{Binding SelectedJob}" 
+        <DataGrid x:Name="JobsGrid" Grid.Row="1" ItemsSource="{Binding Jobs}" SelectedItem="{Binding SelectedJob}" 
                   AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" 
                   Background="White" RowHeight="40" HeadersVisibility="Column"
                   GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#DDDDDD"
@@ -42,16 +42,19 @@
                         <TextBlock Text="{Binding DataContext.HeaderName, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
                     </DataGridTextColumn.Header>
                 </DataGridTextColumn>
+
                 <DataGridTextColumn Binding="{Binding SourceDirectory}" Width="2*">
                     <DataGridTextColumn.Header>
                         <TextBlock Text="{Binding DataContext.HeaderSource, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
                     </DataGridTextColumn.Header>
                 </DataGridTextColumn>
+
                 <DataGridTextColumn Binding="{Binding TargetDirectory}" Width="2*">
                     <DataGridTextColumn.Header>
                         <TextBlock Text="{Binding DataContext.HeaderTarget, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
                     </DataGridTextColumn.Header>
                 </DataGridTextColumn>
+
                 <DataGridTextColumn Binding="{Binding Type}" Width="120">
                     <DataGridTextColumn.Header>
                         <TextBlock Text="{Binding DataContext.HeaderType, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
@@ -67,6 +70,7 @@
                         FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
 
                 <Button Content="{Binding RunButtonText}" Command="{Binding RunCommand}" 
+                        CommandParameter="{Binding ElementName=JobsGrid, Path=SelectedItems}"
                         Padding="20,10" Background="#2980B9" Foreground="White" 
                         FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
             </StackPanel>

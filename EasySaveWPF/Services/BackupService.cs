@@ -136,7 +136,7 @@ namespace EasySaveWPF.Services
                         try
                         {
                             Process cryptoProcess = new Process();
-                            cryptoProcess.StartInfo.FileName = "CryptoSoft.exe";
+                            cryptoProcess.StartInfo.FileName = @"CryptoSoftTool\CryptoSoft.exe";
                             cryptoProcess.StartInfo.Arguments = $"\"{file}\" \"{destFile}\"";
                             cryptoProcess.StartInfo.UseShellExecute = false;
                             cryptoProcess.StartInfo.CreateNoWindow = true;

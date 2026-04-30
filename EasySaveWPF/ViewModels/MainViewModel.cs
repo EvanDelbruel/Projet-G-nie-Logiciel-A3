@@ -111,24 +111,39 @@ namespace EasySaveWPF.ViewModels
             }
         }
 
-        // Executes the selected backup job using the external BackupService
+        // Executes the selected backup jobs (handles multiple selection sequentially)
         private void ExecuteRun(object parameter)
         {
-            if (SelectedJob == null) return;
+            // Casts the parameter received from the XAML into a list of items
+            var selectedItems = parameter as System.Collections.IList;
+
+            // Failsafe in case nothing is selected
+            if (selectedItems == null || selectedItems.Count == 0) return;
+
             BackupService service = new BackupService();
+            var allJobs = new System.Collections.Generic.List<BackupJob>(Jobs);
+            int successCount = 0;
 
             try
             {
-                // Pass both the target job and the full list to handle state updates accurately
-                service.ExecuteBackup(SelectedJob, new System.Collections.Generic.List<BackupJob>(Jobs));
+                // Loops through ALL selected jobs and executes them sequentially
+                foreach (var item in selectedItems)
+                {
+                    if (item is BackupJob jobToRun)
+                    {
+                        service.ExecuteBackup(jobToRun, allJobs);
+                        successCount++;
+                    }
+                }
 
+                // Notifies the user once the entire queue is finished
                 MessageBox.Show(
-                    SelectedLanguage == "Français" ? $"Tâche {SelectedJob.Name} terminée !" : $"Task {SelectedJob.Name} finished!",
+                    SelectedLanguage == "Français" ? $"{successCount} tâche(s) terminée(s) !" : $"{successCount} task(s) finished!",
                     "Info", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (System.Exception ex)
             {
-                // Display a warning if the operation is interrupted by a business software conflict
+                // Halts the sequence and warns the user if business software interrupts
                 MessageBox.Show(ex.Message, "Attention / Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
