@@ -1,0 +1,75 @@
+﻿<Window x:Class="EasySaveWPF.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:EasySaveWPF.ViewModels"
+        mc:Ignorable="d"
+        Title="{Binding WindowTitle}" Height="500" Width="900" WindowStartupLocation="CenterScreen">
+
+    <Grid Background="#F5F5F5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="#2C3E50" Padding="15">
+            <Grid>
+                <TextBlock Text="{Binding WindowTitle}" Foreground="White" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="{Binding SettingsButtonText}" Command="{Binding SettingsCommand}" 
+                        Margin="0,0,15,0" Padding="10,5" Background="#34495E" Foreground="White" 
+                        BorderThickness="0" Cursor="Hand"/>
+
+                    <ComboBox ItemsSource="{Binding AvailableLanguages}" 
+                              SelectedItem="{Binding SelectedLanguage}" 
+                              Width="120" VerticalAlignment="Center" 
+                              Padding="5" FontSize="14"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <DataGrid Grid.Row="1" Margin="15" ItemsSource="{Binding Jobs}" SelectedItem="{Binding SelectedJob}" 
+                  AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" 
+                  Background="White" RowHeight="40" HeadersVisibility="Column"
+                  GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#DDDDDD"
+                  BorderThickness="1" BorderBrush="#CCCCCC">
+            <DataGrid.Columns>
+                <DataGridTextColumn Binding="{Binding Name}" Width="*">
+                    <DataGridTextColumn.Header>
+                        <TextBlock Text="{Binding DataContext.HeaderName, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
+                    </DataGridTextColumn.Header>
+                </DataGridTextColumn>
+                <DataGridTextColumn Binding="{Binding SourceDirectory}" Width="2*">
+                    <DataGridTextColumn.Header>
+                        <TextBlock Text="{Binding DataContext.HeaderSource, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
+                    </DataGridTextColumn.Header>
+                </DataGridTextColumn>
+                <DataGridTextColumn Binding="{Binding TargetDirectory}" Width="2*">
+                    <DataGridTextColumn.Header>
+                        <TextBlock Text="{Binding DataContext.HeaderTarget, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
+                    </DataGridTextColumn.Header>
+                </DataGridTextColumn>
+                <DataGridTextColumn Binding="{Binding Type}" Width="120">
+                    <DataGridTextColumn.Header>
+                        <TextBlock Text="{Binding DataContext.HeaderType, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
+                    </DataGridTextColumn.Header>
+                </DataGridTextColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <Border Grid.Row="2" Background="White" BorderBrush="#EEEEEE" BorderThickness="0,1,0,0" Padding="15">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="{Binding AddButtonText}" Command="{Binding AddCommand}" 
+                        Margin="0,0,10,0" Padding="20,10" Background="#27AE60" Foreground="White" 
+                        FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
+
+                <Button Content="{Binding RunButtonText}" Command="{Binding RunCommand}" 
+                        Padding="20,10" Background="#2980B9" Foreground="White" 
+                        FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>
