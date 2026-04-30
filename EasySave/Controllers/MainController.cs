@@ -14,9 +14,6 @@ namespace EasySave.Controllers
         private List<BackupJob> jobList;
         private readonly string jobsFilePath = "jobs.json";
         private readonly int MAX_JOBS = 5;
-
-        // File to save the user's settings (like log format)
-        private readonly string settingsFilePath = "settings.json";
         public MainController()
         {
             view = new ConsoleView();
@@ -24,7 +21,6 @@ namespace EasySave.Controllers
             // Explicitly trigger the LoggerService Singleton instance at startup.
             // This ensures the "Logs" directory and "state.json" are initialized immediately.
             _ = LoggerService.Instance;
-            LoadSettings();
         }
 
         public void Start(string[] args)
@@ -52,8 +48,7 @@ namespace EasySave.Controllers
                     case "1": CreateNewJob(); break;
                     case "2": ShowAllJobs(); break;
                     case "3": RunBackup(); break;
-                    case "4": ChangeSettings(); break;
-                    case "5": exitApp = true; break;
+                    case "4": exitApp = true; break;
                     default: view.ShowMessage("Choix invalide.", "Invalid choice."); break;
                 }
             }
@@ -67,17 +62,15 @@ namespace EasySave.Controllers
                 Console.WriteLine("1. Créer un travail de sauvegarde");
                 Console.WriteLine("2. Afficher les travaux de sauvegarde");
                 Console.WriteLine("3. Lancer une sauvegarde");
-                Console.WriteLine("4. Paramètres (Format des logs)");
-                Console.WriteLine("5. Quitter"); 
+                Console.WriteLine("4. Quitter"); 
             }
             else
             {
                 Console.WriteLine("\n=== EASYSAVE MAIN MENU ===");
                 Console.WriteLine("1. Create a backup job");
                 Console.WriteLine("2. Show backup jobs");
-                Console.WriteLine("3. Run a backup");
-                Console.WriteLine("4. Settings (Log format)"); 
-                Console.WriteLine("5. Exit");
+                Console.WriteLine("3. Run a backup"); 
+                Console.WriteLine("4. Exit");
             }
         }
 
@@ -225,69 +218,6 @@ namespace EasySave.Controllers
             {
                 Console.WriteLine($"{i + 1}. {jobList[i].ToString()}");
             }
-        }
-        // Method to handle changing the log format
-        private void ChangeSettings()
-        {
-            view.ShowMessage($"\nFormat de log actuel / Current log format: {LoggerService.Instance.LogFormat}",
-                             $"\nFormat de log actuel / Current log format: {LoggerService.Instance.LogFormat}");
-
-            view.ShowMessage("Choisissez le format / Choose format (1 = JSON, 2 = XML) :",
-                             "Choisissez le format / Choose format (1 = JSON, 2 = XML) :");
-
-            string choice = view.GetUserInput();
-
-            if (choice == "2")
-            {
-                LoggerService.Instance.LogFormat = "XML";
-                view.ShowMessage("Format mis à jour en XML !", "Format updated to XML!");
-            }
-            else if (choice == "1")
-            {
-                LoggerService.Instance.LogFormat = "JSON";
-                view.ShowMessage("Format mis à jour en JSON !", "Format updated to JSON!");
-            }
-            else
-            {
-                view.ShowMessage("Choix invalide, aucun changement.", "Invalid choice, no changes made.");
-                return;
-            }
-
-            // Save the new format preference to the settings file
-            SaveSettings();
-
-            Console.WriteLine("\nAppuyez sur Entrée pour continuer... / Press Enter to continue...");
-            Console.ReadLine();
-            Console.Clear();
-        }
-
-        // Method to load the saved settings at startup
-        private void LoadSettings()
-        {
-            if (File.Exists(settingsFilePath))
-            {
-                try
-                {
-                    string json = File.ReadAllText(settingsFilePath);
-                    var settings = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-                    if (settings != null && settings.ContainsKey("LogFormat"))
-                    {
-                        LoggerService.Instance.LogFormat = settings["LogFormat"];
-                    }
-                }
-                catch { /* Ignore errors and keep default JSON format */ }
-            }
-        }
-
-        // Method to save the settings when they are changed
-        private void SaveSettings()
-        {
-            var settings = new Dictionary<string, string>
-            {
-                { "LogFormat", LoggerService.Instance.LogFormat }
-            };
-            string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(settingsFilePath, json);
         }
     }
 }
