@@ -2,31 +2,31 @@
 {
     public class StateModel
     {
-        // Name of the current backup job
+        // Name of the associated backup job
         public string Name { get; set; }
 
-        // Timestamp of the last action
+        // Timestamp indicating when the last action was performed
         public string LastActionTimestamp { get; set; }
 
-        // Current status ("Active" during copy, "Inactive" when finished)
+        // Current execution status (e.g., "Active" while processing, "Inactive" when idle)
         public string State { get; set; }
 
-        // Total number of files detected at start
+        // Total number of files eligible for backup in this job
         public int TotalFilesToCopy { get; set; }
 
-        // Total cumulative size of all files (in bytes)
+        // Total cumulative size of the files to be copied, in bytes
         public long TotalFilesSize { get; set; }
 
-        // Number of files remaining to copy
+        // Number of files still waiting to be processed
         public int NbFilesLeftToDo { get; set; }
 
-        // Progress percentage (from 0 to 100)
+        // Overall completion progress percentage (from 0 to 100)
         public int Progression { get; set; }
 
-        // Path of the file currently being read
+        // Absolute path of the source file currently being read
         public string CurrentSourceFile { get; set; }
 
-        // Path of the file currently being written
+        // Absolute path of the target destination file currently being written
         public string CurrentTargetFile { get; set; }
     }
 }
