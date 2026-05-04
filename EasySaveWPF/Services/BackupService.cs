@@ -13,6 +13,10 @@ namespace EasySaveWPF.Services
     {
         public string BusinessSoftwareName { get; set; } = "notepad";
 
+        // Static lock shared across all instances of BackupService
+        // Ensures only one thread can execute CryptoSoft at a time
+        private static readonly object _cryptoLock = new object();
+
         public void ExecuteBackup(BackupJob activeJob, List<BackupJob> allJobs)
         {
             // Load settings for the business software and encryption extensions
@@ -135,19 +139,23 @@ namespace EasySaveWPF.Services
 
                         try
                         {
-                            Process cryptoProcess = new Process();
-                            cryptoProcess.StartInfo.FileName = @"CryptoSoftTool\CryptoSoft.exe";
-                            cryptoProcess.StartInfo.Arguments = $"\"{file}\" \"{destFile}\"";
-                            cryptoProcess.StartInfo.UseShellExecute = false;
-                            cryptoProcess.StartInfo.CreateNoWindow = true;
-
-                            cryptoProcess.Start();
-                            cryptoProcess.WaitForExit();
-
-                            if (cryptoProcess.ExitCode != 0)
+                            // Use the lock to force threads to wait their turn for CryptoSoft
+                            lock (_cryptoLock)
                             {
-                                throw new Exception("Internal CryptoSoft error.");
-                            }
+                                Process cryptoProcess = new Process();
+                                cryptoProcess.StartInfo.FileName = @"CryptoSoftTool\CryptoSoft.exe";
+                                cryptoProcess.StartInfo.Arguments = $"\"{file}\" \"{destFile}\"";
+                                cryptoProcess.StartInfo.UseShellExecute = false;
+                                cryptoProcess.StartInfo.CreateNoWindow = true;
+
+                                cryptoProcess.Start();
+                                cryptoProcess.WaitForExit();
+
+                                if (cryptoProcess.ExitCode != 0)
+                                {
+                                    throw new Exception("Internal CryptoSoft error.");
+                                }
+                            } // End of lock
 
                             swCrypto.Stop();
                             encryptTimeMs = swCrypto.Elapsed.TotalMilliseconds;
