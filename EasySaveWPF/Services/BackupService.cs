@@ -4,6 +4,7 @@ using System.Linq;
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Threading; // Added for SemaphoreSlim
 using EasyLog;
 using EasySaveWPF.Models;
 
@@ -13,9 +14,15 @@ namespace EasySaveWPF.Services
     {
         public string BusinessSoftwareName { get; set; } = "notepad";
 
+        // Default limit for large files (50 MB in bytes)
+        public long MaxFileSize { get; set; } = 52428800;
+
         // Static lock shared across all instances of BackupService
         // Ensures only one thread can execute CryptoSoft at a time
         private static readonly object _cryptoLock = new object();
+
+        // Semaphore to limit the simultaneous transfer of large files to EXACTLY ONE
+        private static readonly SemaphoreSlim _largeFileSemaphore = new SemaphoreSlim(1, 1);
 
         public void ExecuteBackup(BackupJob activeJob, List<BackupJob> allJobs)
         {
@@ -41,6 +48,12 @@ namespace EasySaveWPF.Services
                             cryptoExtensions = extensions.Split(',')
                                                          .Select(e => e.Trim().ToLower())
                                                          .ToList();
+                        }
+
+                        // Load the max file size limit from settings if it exists
+                        if (settings.TryGetValue("MaxFileSize", out string? maxSizeStr) && long.TryParse(maxSizeStr, out long maxSize))
+                        {
+                            MaxFileSize = maxSize;
                         }
                     }
                 }
@@ -132,55 +145,75 @@ namespace EasySaveWPF.Services
 
                     string fileExtension = Path.GetExtension(file).ToLower();
 
-                    // ENCRYPTION LOGIC
-                    if (cryptoExtensions.Contains(fileExtension))
+                    // Check if the file is considered "Large"
+                    bool isLargeFile = fileSize >= MaxFileSize;
+
+                    try
                     {
-                        Stopwatch swCrypto = Stopwatch.StartNew();
-
-                        try
+                        // If it's a large file, the thread must wait for the Semaphore ticket
+                        if (isLargeFile)
                         {
-                            // Use the lock to force threads to wait their turn for CryptoSoft
-                            lock (_cryptoLock)
-                            {
-                                Process cryptoProcess = new Process();
-                                cryptoProcess.StartInfo.FileName = @"CryptoSoftTool\CryptoSoft.exe";
-                                cryptoProcess.StartInfo.Arguments = $"\"{file}\" \"{destFile}\"";
-                                cryptoProcess.StartInfo.UseShellExecute = false;
-                                cryptoProcess.StartInfo.CreateNoWindow = true;
-
-                                cryptoProcess.Start();
-                                cryptoProcess.WaitForExit();
-
-                                if (cryptoProcess.ExitCode != 0)
-                                {
-                                    throw new Exception("Internal CryptoSoft error.");
-                                }
-                            } // End of lock
-
-                            swCrypto.Stop();
-                            encryptTimeMs = swCrypto.Elapsed.TotalMilliseconds;
+                            _largeFileSemaphore.Wait();
                         }
-                        catch (Exception)
+
+                        // ENCRYPTION LOGIC
+                        if (cryptoExtensions.Contains(fileExtension))
                         {
-                            swCrypto.Stop();
-                            encryptTimeMs = -1; // Flag the encryption failure in the logs
-                            File.Copy(file, destFile, true); // Fallback: perform a standard copy
+                            Stopwatch swCrypto = Stopwatch.StartNew();
+
+                            try
+                            {
+                                // Use the lock to force threads to wait their turn for CryptoSoft
+                                lock (_cryptoLock)
+                                {
+                                    Process cryptoProcess = new Process();
+                                    cryptoProcess.StartInfo.FileName = @"CryptoSoftTool\CryptoSoft.exe";
+                                    cryptoProcess.StartInfo.Arguments = $"\"{file}\" \"{destFile}\"";
+                                    cryptoProcess.StartInfo.UseShellExecute = false;
+                                    cryptoProcess.StartInfo.CreateNoWindow = true;
+
+                                    cryptoProcess.Start();
+                                    cryptoProcess.WaitForExit();
+
+                                    if (cryptoProcess.ExitCode != 0)
+                                    {
+                                        throw new Exception("Internal CryptoSoft error.");
+                                    }
+                                } // End of lock
+
+                                swCrypto.Stop();
+                                encryptTimeMs = swCrypto.Elapsed.TotalMilliseconds;
+                            }
+                            catch (Exception)
+                            {
+                                swCrypto.Stop();
+                                encryptTimeMs = -1; // Flag the encryption failure in the logs
+                                File.Copy(file, destFile, true); // Fallback: perform a standard copy
+                            }
+                        }
+                        else
+                        {
+                            // Standard file copy without encryption
+                            Stopwatch swTransfer = Stopwatch.StartNew();
+                            try
+                            {
+                                File.Copy(file, destFile, true);
+                                swTransfer.Stop();
+                                transferTimeMs = swTransfer.Elapsed.TotalMilliseconds;
+                            }
+                            catch (Exception)
+                            {
+                                swTransfer.Stop();
+                                transferTimeMs = -1;
+                            }
                         }
                     }
-                    else
+                    finally
                     {
-                        // Standard file copy without encryption
-                        Stopwatch swTransfer = Stopwatch.StartNew();
-                        try
+                        // Always release the Semaphore ticket when the large file is done
+                        if (isLargeFile)
                         {
-                            File.Copy(file, destFile, true);
-                            swTransfer.Stop();
-                            transferTimeMs = swTransfer.Elapsed.TotalMilliseconds;
-                        }
-                        catch (Exception)
-                        {
-                            swTransfer.Stop();
-                            transferTimeMs = -1;
+                            _largeFileSemaphore.Release();
                         }
                     }
 
