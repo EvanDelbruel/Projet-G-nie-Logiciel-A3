@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Windows;
 using EasySaveWPF.Models;
 using EasySaveWPF.Services;
@@ -70,6 +71,9 @@ namespace EasySaveWPF
                     jobsToRun.Add(int.Parse(input));
                 }
 
+                CancellationTokenSource cts = new CancellationTokenSource();
+                ManualResetEvent defaultPauseEvent = new ManualResetEvent(true);
+
                 // Iterate through the targeted IDs and execute the corresponding backup processes
                 BackupService service = new BackupService();
                 foreach (int index in jobsToRun)
@@ -81,7 +85,7 @@ namespace EasySaveWPF
                         var jobToExecute = allJobs[realIndex];
                         try
                         {
-                            service.ExecuteBackup(jobToExecute, allJobs);
+                            service.ExecuteBackup(jobToExecute, allJobs, defaultPauseEvent, cts.Token);
                         }
                         catch (Exception ex)
                         {

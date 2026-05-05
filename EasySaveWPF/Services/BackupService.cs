@@ -4,7 +4,7 @@ using System.Linq;
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Text.Json;
-using System.Threading; // Added for SemaphoreSlim
+using System.Threading; // Added for SemaphoreSlim and ManualResetEvent
 using EasyLog;
 using EasySaveWPF.Models;
 
@@ -17,6 +17,9 @@ namespace EasySaveWPF.Services
         // Default limit for large files (50 MB in bytes)
         public long MaxFileSize { get; set; } = 52428800;
 
+        // List to store the priority extensions from settings
+        public List<string> PriorityExtensions { get; set; } = new List<string>();
+
         // Static lock shared across all instances of BackupService
         // Ensures only one thread can execute CryptoSoft at a time
         private static readonly object _cryptoLock = new object();
@@ -24,7 +27,15 @@ namespace EasySaveWPF.Services
         // Semaphore to limit the simultaneous transfer of large files to EXACTLY ONE
         private static readonly SemaphoreSlim _largeFileSemaphore = new SemaphoreSlim(1, 1);
 
-        public void ExecuteBackup(BackupJob activeJob, List<BackupJob> allJobs)
+        // The "Traffic Light" for priority files. Starts as GREEN (Signaled)
+        private static readonly ManualResetEvent _priorityTrafficLight = new ManualResetEvent(true);
+
+        // Counter to track how many priority files are currently being processed across ALL jobs
+        private static int _priorityFilesInProgress = 0;
+        private static readonly object _priorityCounterLock = new object();
+
+        // NOUVEAU : Ajout des arguments pauseEvent et cancellationToken
+        public void ExecuteBackup(BackupJob activeJob, List<BackupJob> allJobs, ManualResetEvent pauseEvent, CancellationToken cancellationToken)
         {
             // Load settings for the business software and encryption extensions
             List<string> cryptoExtensions = new List<string>();
@@ -55,6 +66,12 @@ namespace EasySaveWPF.Services
                         {
                             MaxFileSize = maxSize;
                         }
+
+                        // Load priority extensions from settings
+                        if (settings.TryGetValue("PriorityExtensions", out string? priorityExts))
+                        {
+                            PriorityExtensions = priorityExts.Split(',').Select(e => e.Trim().ToLower()).ToList();
+                        }
                     }
                 }
                 catch { } // Retain default values if an error occurs during reading or deserialization
@@ -71,7 +88,10 @@ namespace EasySaveWPF.Services
             string[] allFiles = Directory.GetFiles(activeJob.SourceDirectory, "*.*", SearchOption.AllDirectories);
             bool isDifferential = activeJob.Type.Equals("Differential", StringComparison.OrdinalIgnoreCase);
 
-            List<string> filesToCopy = new List<string>();
+            // We separate files into two lists: Priority and Normal
+            List<string> priorityFilesToCopy = new List<string>();
+            List<string> normalFilesToCopy = new List<string>();
+
             long totalSize = 0;
 
             foreach (string file in allFiles)
@@ -86,10 +106,25 @@ namespace EasySaveWPF.Services
 
                 if (shouldCopy)
                 {
-                    filesToCopy.Add(file);
                     totalSize += new FileInfo(file).Length;
+                    string extension = Path.GetExtension(file).ToLower();
+
+                    // Sort file into the correct list
+                    if (PriorityExtensions.Contains(extension))
+                    {
+                        priorityFilesToCopy.Add(file);
+                    }
+                    else
+                    {
+                        normalFilesToCopy.Add(file);
+                    }
                 }
             }
+
+            // Combine the lists. Priority files MUST be processed first in this job.
+            List<string> filesToCopy = new List<string>();
+            filesToCopy.AddRange(priorityFilesToCopy);
+            filesToCopy.AddRange(normalFilesToCopy);
 
             int totalFiles = filesToCopy.Count;
             int filesProcessed = 0;
@@ -118,6 +153,10 @@ namespace EasySaveWPF.Services
             {
                 foreach (string file in filesToCopy)
                 {
+                    // Verification stop and pause before  paste file
+                    cancellationToken.ThrowIfCancellationRequested();
+                    pauseEvent.WaitOne();
+
                     if (IsBusinessSoftwareRunning())
                     {
                         LoggerService.Instance.WriteLog(new EasyLog.Models.LogModel
@@ -142,11 +181,27 @@ namespace EasySaveWPF.Services
                     double transferTimeMs = 0;
                     double encryptTimeMs = 0;
                     long fileSize = new FileInfo(file).Length;
-
                     string fileExtension = Path.GetExtension(file).ToLower();
 
-                    // Check if the file is considered "Large"
+                    // Check if the file is considered "Large" or "Priority"
                     bool isLargeFile = fileSize >= MaxFileSize;
+                    bool isPriorityFile = PriorityExtensions.Contains(fileExtension);
+
+                    // GLOBAL PRIORITY CHECK
+                    if (isPriorityFile)
+                    {
+                        // I am a priority file. I turn the traffic light RED for normal files.
+                        lock (_priorityCounterLock)
+                        {
+                            _priorityFilesInProgress++;
+                            _priorityTrafficLight.Reset(); // RED LIGHT
+                        }
+                    }
+                    else
+                    {
+                        // I am a normal file. I must wait if the traffic light is RED.
+                        _priorityTrafficLight.WaitOne();
+                    }
 
                     try
                     {
@@ -215,6 +270,20 @@ namespace EasySaveWPF.Services
                         {
                             _largeFileSemaphore.Release();
                         }
+
+                        // Release priority lock if I was a priority file
+                        if (isPriorityFile)
+                        {
+                            lock (_priorityCounterLock)
+                            {
+                                _priorityFilesInProgress--;
+                                // If I was the LAST priority file across ALL jobs, turn the traffic light GREEN
+                                if (_priorityFilesInProgress == 0)
+                                {
+                                    _priorityTrafficLight.Set(); // GREEN LIGHT
+                                }
+                            }
+                        }
                     }
 
                     // WRITE LOG ENTRY INCLUDING ENCRYPTION TIME
@@ -240,16 +309,26 @@ namespace EasySaveWPF.Services
                     LoggerService.Instance.WriteState(allStates);
                 }
             }
+            catch (OperationCanceledException)
+            {
+                // NOUVEAU : Gère l'état si on a cliqué sur STOP
+                activeState.State = "STOPPED";
+                LoggerService.Instance.WriteState(allStates);
+                throw;
+            }
             finally
             {
                 // This block ALWAYS executes, whether the backup finishes normally or is interrupted by the business software
-                activeState.State = "Inactive";
-                activeState.NbFilesLeftToDo = 0;
-
-                // Set progress to 100% if the business software did not cause an interruption
-                if (!IsBusinessSoftwareRunning())
+                if (activeState.State != "STOPPED")
                 {
-                    activeState.Progression = 100;
+                    activeState.State = "Inactive";
+                    activeState.NbFilesLeftToDo = 0;
+
+                    // Set progress to 100% if the business software did not cause an interruption
+                    if (!IsBusinessSoftwareRunning())
+                    {
+                        activeState.Progression = 100;
+                    }
                 }
 
                 activeState.CurrentSourceFile = "";

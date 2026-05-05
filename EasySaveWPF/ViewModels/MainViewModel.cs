@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
 using System.Threading.Tasks; // Required for Task.Run
+using System.Threading; // Required for CancellationTokenSource and ManualResetEvent
 using System.Linq; // Required for LINQ extensions like Cast and ToList
 using EasySaveWPF.Models;
 using EasySaveWPF.Services;
@@ -44,6 +45,8 @@ namespace EasySaveWPF.ViewModels
                     OnPropertyChanged(nameof(HeaderSource));
                     OnPropertyChanged(nameof(HeaderTarget));
                     OnPropertyChanged(nameof(HeaderType));
+                    OnPropertyChanged(nameof(PauseButtonText));
+                    OnPropertyChanged(nameof(StopButtonText));
                 }
             }
         }
@@ -63,6 +66,10 @@ namespace EasySaveWPF.ViewModels
         public string AddButtonText => SelectedLanguage == "Français" ? "➕ Nouveau Travail" : "➕ New Job";
         public string SettingsButtonText => SelectedLanguage == "Français" ? "⚙️ Paramètres" : "⚙️ Settings";
 
+        // Localized strings for Pause and Stop buttons
+        public string PauseButtonText => SelectedLanguage == "Français" ? "⏸ Pause / Play" : "⏸ Pause / Play";
+        public string StopButtonText => SelectedLanguage == "Français" ? "⏹ Stopper" : "⏹ Stop";
+
         // Localized headers for the DataGrid columns
         public string HeaderName => SelectedLanguage == "Français" ? "Nom" : "Name";
         public string HeaderSource => "Source";
@@ -73,6 +80,16 @@ namespace EasySaveWPF.ViewModels
         public ICommand RunCommand { get; }
         public ICommand AddCommand { get; }
         public ICommand SettingsCommand { get; }
+
+        // Commands for Pause and Stop actions
+        public ICommand PauseCommand { get; }
+        public ICommand StopCommand { get; }
+
+        // Tools for real-time control (Play/Pause/Stop)
+        private CancellationTokenSource _cancellationTokenSource;
+        private ManualResetEvent _pauseEvent = new ManualResetEvent(true); // Starts green
+        private bool _isPaused = false;
+        private bool _isRunning = false;
 
         // Initializes the view model, sets defaults, loads configurations, and binds commands
         public MainViewModel()
@@ -90,6 +107,10 @@ namespace EasySaveWPF.ViewModels
             RunCommand = new RelayCommand(ExecuteRun, CanExecuteRun);
             AddCommand = new RelayCommand(ExecuteAdd);
             SettingsCommand = new RelayCommand(ExecuteSettings);
+
+            // Initialize the new commands
+            PauseCommand = new RelayCommand(ExecutePause, CanExecutePauseOrStop);
+            StopCommand = new RelayCommand(ExecuteStop, CanExecutePauseOrStop);
         }
 
         // Reads the settings file to configure application-wide parameters
@@ -119,13 +140,22 @@ namespace EasySaveWPF.ViewModels
             // Casts the parameter received from the XAML into a list of items
             var selectedItems = parameter as System.Collections.IList;
 
-            // Failsafe in case nothing is selected
-            if (selectedItems == null || selectedItems.Count == 0) return;
+            // Failsafe in case nothing is selected or if jobs are already running
+            if (selectedItems == null || selectedItems.Count == 0 || _isRunning) return;
 
             // Extract the selected jobs into a list
             var jobsToRun = selectedItems.Cast<BackupJob>().ToList();
             var allJobs = new System.Collections.Generic.List<BackupJob>(Jobs);
             int successCount = 0;
+
+            // Reset the control tools for a new session
+            _cancellationTokenSource = new CancellationTokenSource();
+            _pauseEvent.Set(); // Make sure the light is Green
+            _isPaused = false;
+            _isRunning = true;
+
+            // Force UI buttons to update their state
+            CommandManager.InvalidateRequerySuggested();
 
             try
             {
@@ -136,27 +166,73 @@ namespace EasySaveWPF.ViewModels
                     Parallel.ForEach(jobsToRun, jobToRun =>
                     {
                         BackupService service = new BackupService();
-                        service.ExecuteBackup(jobToRun, allJobs);
+
+                        // We pass the pauseEvent and the cancellation token to the service
+                        service.ExecuteBackup(jobToRun, allJobs, _pauseEvent, _cancellationTokenSource.Token);
 
                         // Thread-safe increment of the success counter using Interlocked
                         System.Threading.Interlocked.Increment(ref successCount);
                     });
                 });
 
-                // Notifies the user once the entire parallel queue is finished
-                MessageBox.Show(
-                    SelectedLanguage == "Français" ? $"{successCount} tâche(s) terminée(s) !" : $"{successCount} task(s) finished!",
-                    "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                // Notifies the user once the entire parallel queue is finished (if not cancelled)
+                if (!_cancellationTokenSource.IsCancellationRequested)
+                {
+                    MessageBox.Show(
+                        SelectedLanguage == "Français" ? $"{successCount} tâche(s) terminée(s) !" : $"{successCount} task(s) finished!",
+                        "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
             }
             catch (System.Exception ex)
             {
-                // Halts the sequence and warns the user if an error occurs (e.g. business software interrupts)
-                MessageBox.Show(ex.Message, "Attention / Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                // If the error is an OperationCanceledException, we just swallow it (it's a normal Stop)
+                if (ex.InnerException is System.OperationCanceledException || ex is System.OperationCanceledException)
+                {
+                    MessageBox.Show(SelectedLanguage == "Français" ? "Travaux stoppés." : "Jobs stopped.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    // Halts the sequence and warns the user if an error occurs (e.g. business software interrupts)
+                    MessageBox.Show(ex.Message, "Attention / Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            finally
+            {
+                _isRunning = false;
+                CommandManager.InvalidateRequerySuggested();
             }
         }
 
-        // Determines whether the Run command can execute (requires a selected job)
-        private bool CanExecuteRun(object parameter) => SelectedJob != null;
+        // Execution logic for Pause/Play
+        private void ExecutePause(object parameter)
+        {
+            if (_isPaused)
+            {
+                _isPaused = false;
+                _pauseEvent.Set(); // Green light: Resume
+            }
+            else
+            {
+                _isPaused = true;
+                _pauseEvent.Reset(); // Red light: Pause
+            }
+        }
+
+        // Execution logic for Stop
+        private void ExecuteStop(object parameter)
+        {
+            if (_isRunning && _cancellationTokenSource != null)
+            {
+                _pauseEvent.Set(); // We must unlock paused threads so they can read the cancellation token!
+                _cancellationTokenSource.Cancel(); // Fire the Stop signal
+            }
+        }
+
+        // Determines whether the Run command can execute (requires a selected job and no running process)
+        private bool CanExecuteRun(object parameter) => SelectedJob != null && !_isRunning;
+
+        // Pause and Stop buttons are only active when jobs are actually running
+        private bool CanExecutePauseOrStop(object parameter) => _isRunning;
 
         // Opens the Add Job dialog and appends the new configuration to the collection upon success
         private void ExecuteAdd(object parameter)
