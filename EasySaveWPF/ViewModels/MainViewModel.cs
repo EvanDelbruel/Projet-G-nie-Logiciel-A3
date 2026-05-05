@@ -3,6 +3,8 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
+using System.Threading.Tasks; // Required for Task.Run
+using System.Linq; // Required for LINQ extensions like Cast and ToList
 using EasySaveWPF.Models;
 using EasySaveWPF.Services;
 
@@ -111,8 +113,8 @@ namespace EasySaveWPF.ViewModels
             }
         }
 
-        // Executes the selected backup jobs (handles multiple selection sequentially)
-        private void ExecuteRun(object parameter)
+        // Executes the selected backup jobs (handles multiple selection in PARALLEL)
+        private async void ExecuteRun(object parameter)
         {
             // Casts the parameter received from the XAML into a list of items
             var selectedItems = parameter as System.Collections.IList;
@@ -120,30 +122,35 @@ namespace EasySaveWPF.ViewModels
             // Failsafe in case nothing is selected
             if (selectedItems == null || selectedItems.Count == 0) return;
 
-            BackupService service = new BackupService();
+            // Extract the selected jobs into a list
+            var jobsToRun = selectedItems.Cast<BackupJob>().ToList();
             var allJobs = new System.Collections.Generic.List<BackupJob>(Jobs);
             int successCount = 0;
 
             try
             {
-                // Loops through ALL selected jobs and executes them sequentially
-                foreach (var item in selectedItems)
+                // Run the heavy backup process in a separate background thread to keep the UI responsive
+                await Task.Run(() =>
                 {
-                    if (item is BackupJob jobToRun)
+                    // Execute all selected jobs in parallel (Multithreading)
+                    Parallel.ForEach(jobsToRun, jobToRun =>
                     {
+                        BackupService service = new BackupService();
                         service.ExecuteBackup(jobToRun, allJobs);
-                        successCount++;
-                    }
-                }
 
-                // Notifies the user once the entire queue is finished
+                        // Thread-safe increment of the success counter using Interlocked
+                        System.Threading.Interlocked.Increment(ref successCount);
+                    });
+                });
+
+                // Notifies the user once the entire parallel queue is finished
                 MessageBox.Show(
                     SelectedLanguage == "Français" ? $"{successCount} tâche(s) terminée(s) !" : $"{successCount} task(s) finished!",
                     "Info", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (System.Exception ex)
             {
-                // Halts the sequence and warns the user if business software interrupts
+                // Halts the sequence and warns the user if an error occurs (e.g. business software interrupts)
                 MessageBox.Show(ex.Message, "Attention / Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
