@@ -3,9 +3,9 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
-using System.Threading.Tasks; // Required for Task.Run
-using System.Threading; // Required for CancellationTokenSource and ManualResetEvent
-using System.Linq; // Required for LINQ extensions like Cast and ToList
+using System.Threading.Tasks;
+using System.Threading;
+using System.Linq;
 using EasySaveWPF.Models;
 using EasySaveWPF.Services;
 

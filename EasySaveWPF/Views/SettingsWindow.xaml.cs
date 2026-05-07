@@ -20,6 +20,7 @@ namespace EasySaveWPF.Views
             {
                 Title = "Settings";
                 LblLogFormat.Text = "Log Format (JSON or XML):";
+                LblLogTarget.Text = "Logs Location:";
                 LblBusinessSoftware.Text = "Blocking business software (e.g., notepad, CalculatorApp):";
                 LblCryptoExtensions.Text = "Extensions to encrypt (separated by a comma, e.g.: .txt, .pdf):";
                 BtnCancel.Content = "Cancel";
@@ -31,6 +32,7 @@ namespace EasySaveWPF.Views
         {
             // Establish default fallback values in case the configuration file is missing or unreadable
             CmbLogFormat.SelectedIndex = 0;
+            CmbLogTarget.SelectedIndex = 2;
             TxtBusinessSoftware.Text = "notepad";
             TxtCryptoExtensions.Text = ".txt,.pdf";
 
@@ -43,19 +45,15 @@ namespace EasySaveWPF.Views
 
                     if (settings != null)
                     {
-                        if (settings.TryGetValue("LogFormat", out string? format))
-                            CmbLogFormat.SelectedIndex = format == "XML" ? 1 : 0;
-
-                        if (settings.TryGetValue("BusinessSoftware", out string? software))
-                            TxtBusinessSoftware.Text = software;
-
-                        if (settings.TryGetValue("CryptoExtensions", out string? extensions))
-                            TxtCryptoExtensions.Text = extensions;
+                        if (settings.TryGetValue("LogFormat", out string? f)) CmbLogFormat.Text = f;
+                        if (settings.TryGetValue("LogTarget", out string? t)) CmbLogTarget.Text = t;
+                        if (settings.TryGetValue("BusinessSoftware", out string? s)) TxtBusinessSoftware.Text = s;
+                        if (settings.TryGetValue("CryptoExtensions", out string? e)) TxtCryptoExtensions.Text = e;
                     }
                 }
                 catch
                 {
-                    // Suppress exceptions to ensure default values are retained if the file is corrupted 
+                    // Suppress exceptions to ensure default values are retained if the file is corrupted
                 }
             }
         }
@@ -66,16 +64,17 @@ namespace EasySaveWPF.Views
             var settings = new Dictionary<string, string>
             {
                 { "LogFormat", CmbLogFormat.Text },
+                { "LogTarget", CmbLogTarget.Text },
                 { "BusinessSoftware", TxtBusinessSoftware.Text },
                 { "CryptoExtensions", TxtCryptoExtensions.Text }
             };
 
             // Serialize and save the updated configuration to the local JSON storage
-            string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(_settingsFilePath, json);
+            File.WriteAllText(_settingsFilePath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
 
             // Immediately apply the new log format to the running instance of the logger service
             EasyLog.LoggerService.Instance.LogFormat = CmbLogFormat.Text;
+            EasyLog.LoggerService.Instance.LogTarget = CmbLogTarget.Text;
 
             // Signal successful save operation and close the dialog
             DialogResult = true;

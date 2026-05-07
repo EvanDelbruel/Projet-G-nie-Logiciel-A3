@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:EasySaveWPF.ViewModels"
         mc:Ignorable="d"
-        Title="{Binding WindowTitle}" Height="500" Width="900" WindowStartupLocation="CenterScreen">
+        Title="{Binding WindowTitle}" Height="500" Width="1050" WindowStartupLocation="CenterScreen">
 
     <Grid Background="#F5F5F5">
         <Grid.RowDefinitions>
@@ -60,6 +60,36 @@
                         <TextBlock Text="{Binding DataContext.HeaderType, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
                     </DataGridTextColumn.Header>
                 </DataGridTextColumn>
+
+
+                <DataGridTextColumn Binding="{Binding State}" Width="80">
+                    <DataGridTextColumn.Header>
+                        <TextBlock Text="Statut"/>
+                    </DataGridTextColumn.Header>
+                </DataGridTextColumn>
+
+                <DataGridTemplateColumn Header="Progress" Width="*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <ProgressBar Value="{Binding Progression}" Height="15" Minimum="0" Maximum="100">
+                                <ProgressBar.Style>
+                                    <Style TargetType="ProgressBar">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding State}" Value="Inactive">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Progression}" Value="100">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ProgressBar.Style>
+                            </ProgressBar>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
             </DataGrid.Columns>
         </DataGrid>
 
@@ -70,11 +100,9 @@
                         Margin="0,0,10,0" Padding="15,10" Background="#27AE60" Foreground="White" 
                         FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
 
-
                 <Button Content="{Binding StopButtonText}" Command="{Binding StopCommand}" 
                         Margin="0,0,10,0" Padding="15,10" Background="#E74C3C" Foreground="White" 
                         FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
-
 
                 <Button Content="{Binding PauseButtonText}" Command="{Binding PauseCommand}" 
                         Margin="0,0,10,0" Padding="15,10" Background="#F39C12" Foreground="White" 

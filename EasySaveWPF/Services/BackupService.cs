@@ -34,7 +34,6 @@ namespace EasySaveWPF.Services
         private static int _priorityFilesInProgress = 0;
         private static readonly object _priorityCounterLock = new object();
 
-        // NOUVEAU : Ajout des arguments pauseEvent et cancellationToken
         public void ExecuteBackup(BackupJob activeJob, List<BackupJob> allJobs, ManualResetEvent pauseEvent, CancellationToken cancellationToken)
         {
             // Load settings for the business software and encryption extensions
@@ -77,9 +76,10 @@ namespace EasySaveWPF.Services
                 catch { } // Retain default values if an error occurs during reading or deserialization
             }
 
-            if (IsBusinessSoftwareRunning())
+            while (IsBusinessSoftwareRunning())
             {
-                throw new InvalidOperationException($"The target business software ('{BusinessSoftwareName}') is currently running. Please close it.");
+                cancellationToken.ThrowIfCancellationRequested(); // Allows cancellation even during pause
+                Thread.Sleep(1000); // Wait 1 second before checking again
             }
 
             if (!Directory.Exists(activeJob.SourceDirectory)) throw new DirectoryNotFoundException("Source directory not found.");
@@ -147,31 +147,59 @@ namespace EasySaveWPF.Services
             }
 
             var activeState = allStates.First(s => s.Name == activeJob.Name);
-
+            activeState.State = "Active";
+            activeJob.State = "Active";      // Informe l'interface graphique
+            activeJob.Progression = 0;      // Initialise la barre
+            LoggerService.Instance.WriteState(allStates);
             // Use a try-finally block to ensure the state file is reliably updated upon completion or failure
             try
             {
                 foreach (string file in filesToCopy)
                 {
-                    // Verification stop and pause before  paste file
-                    cancellationToken.ThrowIfCancellationRequested();
-                    pauseEvent.WaitOne();
-
-                    if (IsBusinessSoftwareRunning())
+                    // 1. Manual Stop Check: check if the user clicked "Stop" before starting the file
+                    if (cancellationToken.IsCancellationRequested)
                     {
-                        LoggerService.Instance.WriteLog(new EasyLog.Models.LogModel
-                        {
-                            Name = activeJob.Name,
-                            SourceFilePath = "INTERRUPTED",
-                            TargetFilePath = $"Software: {BusinessSoftwareName}",
-                            FileSize = 0,
-                            FileTransferTime = -1,
-                            FileEncryptTime = 0,
-                            Time = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss")
-                        });
-                        throw new InvalidOperationException("Backup interrupted by the business software.");
+                        activeState.State = "Inactive";
+                        activeJob.State = "Inactive";
+                        activeJob.Progression = 0;
+                        LoggerService.Instance.WriteState(allStates);
+                        return; // Exit cleanly without triggering a debugger exception
                     }
 
+                    // 2. Manual Pause: waits here if the "Pause" button was clicked
+                    pauseEvent.WaitOne();
+
+                    // 3. Automatic Software Pause: check if the business software (e.g., calculator) is running
+                    bool wasPausedBySoftware = false;
+                    while (IsBusinessSoftwareRunning())
+                    {
+                        // Allows the user to still "Stop" the job even while it is blocked by the business software
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            activeState.State = "Inactive";
+                            activeJob.State = "Inactive";
+                            return;
+                        }
+
+                        if (!wasPausedBySoftware)
+                        {
+                            activeState.State = "Paused (Software)";
+                            activeJob.State = "Paused (Software)"; // Update UI status
+                            LoggerService.Instance.WriteState(allStates);
+                            wasPausedBySoftware = true;
+                        }
+                        Thread.Sleep(1000); // Wait 1 second before checking again
+                    }
+
+                    // Resume "Active" state if it was previously paused by software
+                    if (wasPausedBySoftware)
+                    {
+                        activeState.State = "Active";
+                        activeJob.State = "Active";
+                        LoggerService.Instance.WriteState(allStates);
+                    }
+
+                    // --- Preparation logic ---
                     string relativePath = Path.GetRelativePath(activeJob.SourceDirectory, file);
                     string destFile = Path.Combine(activeJob.TargetDirectory, relativePath);
 
@@ -183,14 +211,13 @@ namespace EasySaveWPF.Services
                     long fileSize = new FileInfo(file).Length;
                     string fileExtension = Path.GetExtension(file).ToLower();
 
-                    // Check if the file is considered "Large" or "Priority"
                     bool isLargeFile = fileSize >= MaxFileSize;
                     bool isPriorityFile = PriorityExtensions.Contains(fileExtension);
 
-                    // GLOBAL PRIORITY CHECK
+                    // 4. GLOBAL PRIORITY CHECK (Traffic Light System)
                     if (isPriorityFile)
                     {
-                        // I am a priority file. I turn the traffic light RED for normal files.
+                        // Priority file: turn the light RED for normal files
                         lock (_priorityCounterLock)
                         {
                             _priorityFilesInProgress++;
@@ -199,26 +226,25 @@ namespace EasySaveWPF.Services
                     }
                     else
                     {
-                        // I am a normal file. I must wait if the traffic light is RED.
+                        // Normal file: must wait if a priority file is being processed
                         _priorityTrafficLight.WaitOne();
                     }
 
                     try
                     {
-                        // If it's a large file, the thread must wait for the Semaphore ticket
+                        // 5. LARGE FILE CONTROL: Limit simultaneous transfers of large files to exactly one
                         if (isLargeFile)
                         {
                             _largeFileSemaphore.Wait();
                         }
 
-                        // ENCRYPTION LOGIC
+                        // 6. ENCRYPTION OR COPY LOGIC
                         if (cryptoExtensions.Contains(fileExtension))
                         {
                             Stopwatch swCrypto = Stopwatch.StartNew();
-
                             try
                             {
-                                // Use the lock to force threads to wait their turn for CryptoSoft
+                                // Mono-instance lock for CryptoSoft
                                 lock (_cryptoLock)
                                 {
                                     Process cryptoProcess = new Process();
@@ -226,29 +252,21 @@ namespace EasySaveWPF.Services
                                     cryptoProcess.StartInfo.Arguments = $"\"{file}\" \"{destFile}\"";
                                     cryptoProcess.StartInfo.UseShellExecute = false;
                                     cryptoProcess.StartInfo.CreateNoWindow = true;
-
                                     cryptoProcess.Start();
                                     cryptoProcess.WaitForExit();
-
-                                    if (cryptoProcess.ExitCode != 0)
-                                    {
-                                        throw new Exception("Internal CryptoSoft error.");
-                                    }
-                                } // End of lock
-
+                                }
                                 swCrypto.Stop();
                                 encryptTimeMs = swCrypto.Elapsed.TotalMilliseconds;
                             }
                             catch (Exception)
                             {
                                 swCrypto.Stop();
-                                encryptTimeMs = -1; // Flag the encryption failure in the logs
-                                File.Copy(file, destFile, true); // Fallback: perform a standard copy
+                                encryptTimeMs = -1; // Log encryption failure
+                                File.Copy(file, destFile, true); // Fallback: standard copy
                             }
                         }
                         else
                         {
-                            // Standard file copy without encryption
                             Stopwatch swTransfer = Stopwatch.StartNew();
                             try
                             {
@@ -265,28 +283,21 @@ namespace EasySaveWPF.Services
                     }
                     finally
                     {
-                        // Always release the Semaphore ticket when the large file is done
-                        if (isLargeFile)
-                        {
-                            _largeFileSemaphore.Release();
-                        }
+                        // Release resource locks
+                        if (isLargeFile) _largeFileSemaphore.Release();
 
-                        // Release priority lock if I was a priority file
                         if (isPriorityFile)
                         {
                             lock (_priorityCounterLock)
                             {
                                 _priorityFilesInProgress--;
-                                // If I was the LAST priority file across ALL jobs, turn the traffic light GREEN
-                                if (_priorityFilesInProgress == 0)
-                                {
-                                    _priorityTrafficLight.Set(); // GREEN LIGHT
-                                }
+                                // If this was the last priority file, turn the light GREEN for normal files
+                                if (_priorityFilesInProgress == 0) _priorityTrafficLight.Set();
                             }
                         }
                     }
 
-                    // WRITE LOG ENTRY INCLUDING ENCRYPTION TIME
+                    // 7. LOGGING AND PROGRESS UPDATES
                     LoggerService.Instance.WriteLog(new EasyLog.Models.LogModel
                     {
                         Name = activeJob.Name,
@@ -300,18 +311,21 @@ namespace EasySaveWPF.Services
 
                     filesProcessed++;
 
+                    // Update states for storage and UI
                     activeState.CurrentSourceFile = file;
                     activeState.CurrentTargetFile = destFile;
                     activeState.NbFilesLeftToDo = totalFiles - filesProcessed;
                     activeState.Progression = (int)((filesProcessed / (double)totalFiles) * 100);
-                    activeState.LastActionTimestamp = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
+
+                    // Notify the WPF interface to update the Progress Bar and Status column
+                    activeJob.Progression = activeState.Progression;
+                    activeJob.State = activeState.State;
 
                     LoggerService.Instance.WriteState(allStates);
                 }
             }
             catch (OperationCanceledException)
             {
-                // NOUVEAU : Gère l'état si on a cliqué sur STOP
                 activeState.State = "STOPPED";
                 LoggerService.Instance.WriteState(allStates);
                 throw;
@@ -334,6 +348,9 @@ namespace EasySaveWPF.Services
                 activeState.CurrentSourceFile = "";
                 activeState.CurrentTargetFile = "";
                 activeState.LastActionTimestamp = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
+
+                activeJob.State = activeState.State;
+                activeJob.Progression = activeState.Progression;
 
                 LoggerService.Instance.WriteState(allStates);
             }
