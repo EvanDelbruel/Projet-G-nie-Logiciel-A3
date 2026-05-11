@@ -2,6 +2,7 @@
 using System.IO;
 using System.Text;
 using System.Threading; // Required for Mutex
+using System.Diagnostics; // Required for Stopwatch
 
 namespace CryptoSoft
 {
@@ -31,8 +32,24 @@ namespace CryptoSoft
                 string sourceFile = args[0];
                 string targetFile = args[1];
 
-                // Define the secret encryption key
-                string key = "EasySaveKey";
+                // Start stopwatch to measure encryption time
+                Stopwatch stopwatch = new Stopwatch();
+                stopwatch.Start();
+
+                // Retrieve the encryption key from a configuration file
+                string appDirectory = AppDomain.CurrentDomain.BaseDirectory;
+                string configPath = Path.Combine(appDirectory, "config.txt");
+                string key = "EasySaveKey"; // Default fallback key
+
+                // Read key from config file if it exists, otherwise create it
+                if (File.Exists(configPath))
+                {
+                    key = File.ReadAllText(configPath);
+                }
+                else
+                {
+                    File.WriteAllText(configPath, key);
+                }
 
                 try
                 {
@@ -48,10 +65,12 @@ namespace CryptoSoft
                     // Write the encrypted byte array to the target destination
                     File.WriteAllBytes(targetFile, fileBytes);
 
-                    // Simulate a slight processing delay to ensure execution time is visible in the logs
-                    System.Threading.Thread.Sleep(50);
+                    // Stop stopwatch
+                    stopwatch.Stop();
+                    int elapsedMs = (int)stopwatch.ElapsedMilliseconds;
 
-                    return 0; // Return 0 to indicate successful execution
+                    // Return execution time (must be > 0). If execution is too fast, return 1ms minimum.
+                    return elapsedMs > 0 ? elapsedMs : 1;
                 }
                 catch (Exception)
                 {

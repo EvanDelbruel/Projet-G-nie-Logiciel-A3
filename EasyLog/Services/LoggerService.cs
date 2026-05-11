@@ -3,9 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Xml.Serialization; // Required for XML serialization
-using System.Net.Sockets;       // NOUVEAU : Required for TCP network (Phase 4)
-using System.Text;              // NOUVEAU : Required for encoding (Phase 4)
+using System.Xml.Serialization;
+using System.Net.Sockets;
+using System.Text;
 
 namespace EasyLog
 {
@@ -17,27 +17,33 @@ namespace EasyLog
         private static LoggerService _instance = null;
         private static readonly object _padlock = new object();
 
-        //  Locks to synchronize file writing across multiple threads
+        // Locks to synchronize file writing across multiple threads
         private static readonly object _logLock = new object();
         private static readonly object _stateLock = new object();
 
-        private readonly string _logDirectory = "Logs";
+        private readonly string _logDirectory;
         private readonly string _stateFilePath;
 
         // Gets or sets the preferred log format. 
         // Defaults to "JSON" to ensure backward compatibility and prevent breaking changes.
         public string LogFormat { get; set; } = "JSON";
 
-        // NOUVEAU : Propriété pour choisir la cible des logs (Local, Serveur, Les Deux)
+        // NEW : Property to choose the log target (Local, Serveur, Les Deux)
         public string LogTarget { get; set; } = "Les Deux";
 
-        // NOUVEAU : Configuration du serveur distant (LogServer)
-        private readonly string _serverIp = "127.0.0.1"; // Adresse locale
-        private readonly int _serverPort = 11000;        // Le même port que le serveur
+        // NEW : Remote server configuration (LogServer)
+        private readonly string _serverIp = "127.0.0.1"; // Local address
+        private readonly int _serverPort = 11000;        // Same port as the server
 
         // Private constructor to prevent direct instantiation
         private LoggerService()
         {
+            // --- START OF APPDATA MODIFICATIONS ---
+            // Retrieve the user's AppData/Roaming directory to respect Windows permissions
+            string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            _logDirectory = Path.Combine(appDataPath, "ProSoft", "EasySave", "Logs");
+            // --- END OF MODIFICATIONS ---
+
             // Ensure the base log directory exists upon initialization
             if (!Directory.Exists(_logDirectory))
             {
@@ -65,12 +71,12 @@ namespace EasyLog
         }
 
         // Appends a new log entry to the daily log file based on the configured LogFormat.
-        //  Added lock to prevent concurrent write operations from multiple threads
+        // Added lock to prevent concurrent write operations from multiple threads
         public void WriteLog(LogModel logEntry)
         {
             lock (_logLock)
             {
-                // 1. ÉCRITURE LOCALE (Si sélectionné dans les paramètres)
+                // 1. LOCAL WRITING (If selected in settings)
                 if (LogTarget == "Local" || LogTarget == "Les Deux")
                 {
                     List<LogModel> dailyLogs = new List<LogModel>();
@@ -140,13 +146,13 @@ namespace EasyLog
                     }
                 }
 
-                // 2. ENVOI SERVEUR (Si sélectionné dans les paramètres)
+                // 2. SERVER SENDING (If selected in settings)
                 if (LogTarget == "Serveur" || LogTarget == "Les Deux")
                 {
-                    // NOUVEAU : Envoi du log unique au serveur distant en temps réel
+                    // NEW : Send unique logs to the distant server in real time
                     try
                     {
-                        // On crée un paquet avec le nom de la machine de l'utilisateur + le log
+                        // Create a packet with the user's machine name + the log
                         var packet = new
                         {
                             User = Environment.MachineName,
@@ -155,13 +161,13 @@ namespace EasyLog
                         string logJson = JsonSerializer.Serialize(packet, new JsonSerializerOptions { WriteIndented = true });
                         SendLogToServer(logJson);
                     }
-                    catch { /* On ignore silencieusement si l'envoi échoue pour ne pas bloquer l'application */ }
+                    catch { /* Silently ignore if sending fails to avoid crashing the application */ }
                 }
 
             } // End of _logLock
         }
 
-        // NOUVEAU : Méthode qui s'occupe de l'envoi réseau vers l'application Console
+        // NEW : Method that handles network sending to the Console application (Docker)
         private void SendLogToServer(string logData)
         {
             try
@@ -175,13 +181,13 @@ namespace EasyLog
             }
             catch
             {
-                // Si le serveur Docker est éteint, on étouffe l'erreur pour ne pas faire planter EasySave
+                // If the Docker server is down, suppress the error to prevent EasySave from crashing
             }
         }
 
         // Updates the real-time state file with the current progress of all tracked jobs.
         // The state file is strictly maintained in JSON format for optimized real-time reading.
-        //  Added lock to prevent concurrent write operations from multiple threads
+        // Added lock to prevent concurrent write operations from multiple threads
         public void WriteState(List<StateModel> allStates)
         {
             lock (_stateLock)
