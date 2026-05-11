@@ -23,6 +23,11 @@ namespace EasySaveWPF.Views
                 LblLogTarget.Text = "Logs Location:";
                 LblBusinessSoftware.Text = "Blocking business software (e.g., notepad, CalculatorApp):";
                 LblCryptoExtensions.Text = "Extensions to encrypt (separated by a comma, e.g.: .txt, .pdf):";
+
+                // NOUVELLES TRADUCTIONS
+                LblPriorityExtensions.Text = "Priority extensions (separated by a comma, e.g.: .iso, .mp4):";
+                LblMaxFileSize.Text = "Max large file size (in bytes, e.g.: 52428800 for 50MB):";
+
                 BtnCancel.Content = "Cancel";
                 BtnSave.Content = "Save";
             }
@@ -35,6 +40,10 @@ namespace EasySaveWPF.Views
             CmbLogTarget.SelectedIndex = 2;
             TxtBusinessSoftware.Text = "notepad";
             TxtCryptoExtensions.Text = ".txt,.pdf";
+
+            // VALEURS PAR DÉFAUT DES NOUVEAUX CHAMPS
+            TxtPriorityExtensions.Text = ".iso,.mp4";
+            TxtMaxFileSize.Text = "52428800"; // 50 Mo par défaut
 
             if (File.Exists(_settingsFilePath))
             {
@@ -49,6 +58,10 @@ namespace EasySaveWPF.Views
                         if (settings.TryGetValue("LogTarget", out string? t)) CmbLogTarget.Text = t;
                         if (settings.TryGetValue("BusinessSoftware", out string? s)) TxtBusinessSoftware.Text = s;
                         if (settings.TryGetValue("CryptoExtensions", out string? e)) TxtCryptoExtensions.Text = e;
+
+                        // CHARGEMENT DES NOUVELLES VALEURS
+                        if (settings.TryGetValue("PriorityExtensions", out string? p)) TxtPriorityExtensions.Text = p;
+                        if (settings.TryGetValue("MaxFileSize", out string? m)) TxtMaxFileSize.Text = m;
                     }
                 }
                 catch
@@ -66,7 +79,11 @@ namespace EasySaveWPF.Views
                 { "LogFormat", CmbLogFormat.Text },
                 { "LogTarget", CmbLogTarget.Text },
                 { "BusinessSoftware", TxtBusinessSoftware.Text },
-                { "CryptoExtensions", TxtCryptoExtensions.Text }
+                { "CryptoExtensions", TxtCryptoExtensions.Text },
+                
+                // ENREGISTREMENT DES NOUVELLES VALEURS
+                { "PriorityExtensions", TxtPriorityExtensions.Text },
+                { "MaxFileSize", TxtMaxFileSize.Text }
             };
 
             // Serialize and save the updated configuration to the local JSON storage
