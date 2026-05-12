@@ -1,15 +1,17 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace EasySaveWPF.Views
 {
     // Interaction logic and state management for the application configuration view.
     public partial class SettingsWindow : Window
     {
-        // Relative path identifying the configuration persistence layer.
-        private readonly string _settingsFilePath = "settings.json";
+        // Relative path identifying the configuration persistence layer using strict AppData directory.
+        private readonly string _settingsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EasySave", "settings.json");
 
         // Initializes the view component and injects the active localization context.
         public SettingsWindow(string currentLanguage)
@@ -30,8 +32,16 @@ namespace EasySaveWPF.Views
 
                 LblLogDestination.Text = "Log Destination (Local, Docker, Both):";
 
+                // Dynamic translation for the ComboBox content
+                ((ComboBoxItem)CmbLogDestination.Items[2]).Content = "Both";
+
                 BtnCancel.Content = "Cancel";
                 BtnSave.Content = "Save";
+            }
+            else
+            {
+                // French fallback for the ComboBox content
+                ((ComboBoxItem)CmbLogDestination.Items[2]).Content = "Les Deux";
             }
         }
 
@@ -76,7 +86,7 @@ namespace EasySaveWPF.Views
                         if (settings.TryGetValue("LogDestination", out string? dest))
                         {
                             if (dest == "Docker") CmbLogDestination.SelectedIndex = 1;
-                            else if (dest == "Both") CmbLogDestination.SelectedIndex = 2;
+                            else if (dest == "Both" || dest == "Les Deux") CmbLogDestination.SelectedIndex = 2;
                             else CmbLogDestination.SelectedIndex = 0;
                         }
                     }
@@ -108,7 +118,10 @@ namespace EasySaveWPF.Views
 
             // Hot-reload critical configuration properties directly into active singleton instances.
             EasyLog.LoggerService.Instance.LogFormat = CmbLogFormat.Text;
-            EasyLog.LoggerService.Instance.LogDestination = CmbLogDestination.Text;
+
+            // Normalize "Les Deux" to "Both" for the backend if needed, but saving exactly what's on screen works too.
+            string finalDest = CmbLogDestination.Text == "Les Deux" ? "Both" : CmbLogDestination.Text;
+            EasyLog.LoggerService.Instance.LogDestination = finalDest;
 
             // Resolve the dialog interaction with a positive assertion.
             DialogResult = true;

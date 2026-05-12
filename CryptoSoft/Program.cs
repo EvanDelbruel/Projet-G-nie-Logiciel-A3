@@ -7,22 +7,22 @@ namespace CryptoSoft
 {
     class Program
     {
-        // Defines a unique Mutex to ensure CryptoSoft is a single-instance application
+        // Define a unique Mutex to ensure CryptoSoft is Mono-Instance (V3.0 Requirement)
         private static Mutex _mutex = new Mutex(true, "CryptoSoft_Unique_App_Mutex");
 
         static int Main(string[] args)
         {
-            // Attempts to acquire the Mutex. TimeSpan.Zero means it does not wait if it is already taken.
+            // Try to acquire the Mutex. TimeSpan.Zero means we don't wait if it's already taken.
             if (!_mutex.WaitOne(TimeSpan.Zero, true))
             {
-                // If the Mutex cannot be acquired, another instance is already running.
+                // If we can't get the Mutex, another instance is already running
                 Console.WriteLine("Error: CryptoSoft is already running. Only one instance is allowed.");
-                return -1; // Returns -1 to signal to EasySave that encryption failed (or was blocked)
+                return -1; // Return -1 to signal EasySave that encryption failed
             }
 
             try
             {
-                // Checks that both the source and target file paths are provided as arguments
+                // Verify that both source and target file paths are provided as arguments
                 if (args.Length < 2)
                 {
                     return -1;
@@ -31,36 +31,50 @@ namespace CryptoSoft
                 string sourceFile = args[0];
                 string targetFile = args[1];
 
-                // Defines the secret encryption key
-                string key = "EasySaveKey";
+                // --- TA SUPERBE IDÉE : CONFIG.TXT ---
+                // Retrieve the encryption key from a configuration file
+                string appDirectory = AppDomain.CurrentDomain.BaseDirectory;
+                string configPath = Path.Combine(appDirectory, "config.txt");
+                string key = "EasySaveKey"; // Default fallback key
+
+                // Read key from config file if it exists, otherwise create it
+                if (File.Exists(configPath))
+                {
+                    key = File.ReadAllText(configPath);
+                }
+                else
+                {
+                    File.WriteAllText(configPath, key);
+                }
+                // ------------------------------------
 
                 try
                 {
                     byte[] fileBytes = File.ReadAllBytes(sourceFile);
                     byte[] keyBytes = Encoding.UTF8.GetBytes(key);
 
-                    // Applies XOR encryption: bitwise operation between the file bytes and the key bytes
+                    // Apply XOR encryption: perform a bitwise operation between file bytes and key bytes
                     for (int i = 0; i < fileBytes.Length; i++)
                     {
                         fileBytes[i] = (byte)(fileBytes[i] ^ keyBytes[i % keyBytes.Length]);
                     }
 
-                    // Writes the encrypted byte array to the target destination
+                    // Write the encrypted byte array to the target destination
                     File.WriteAllBytes(targetFile, fileBytes);
 
-                    // Simulates a slight processing delay to ensure the execution time is visible in the logs
-                    System.Threading.Thread.Sleep(50);
+                    // Simulate a slight processing delay to ensure execution time > 0 in EasySave logs
+                    Thread.Sleep(50);
 
-                    return 0; // Returns 0 to indicate successful execution
+                    return 0; // Return 0 to indicate SUCCESS to EasySave
                 }
                 catch (Exception)
                 {
-                    return -1; // Returns -1 to indicate an error during the encryption process
+                    return -1; // Return -1 to indicate an ERROR during the encryption process
                 }
             }
             finally
             {
-                // Always releases the Mutex when the application terminates, even in the event of a crash
+                // Always release the Mutex when the application finishes, even if it crashes
                 _mutex.ReleaseMutex();
             }
         }

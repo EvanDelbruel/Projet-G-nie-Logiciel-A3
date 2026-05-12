@@ -12,8 +12,8 @@ FROM mcr.microsoft.com/dotnet/runtime:8.0
 WORKDIR /app
 COPY --from=build /app/out .
 
-# On expose le port 8080 pour que EasySave puisse s'y connecter
-EXPOSE 8080
+# On expose le port 11000 (Le port officiel de ton architecture V3)
+EXPOSE 11000
 
 # Lancement du serveur
 ENTRYPOINT ["dotnet", "LogServer.dll"]

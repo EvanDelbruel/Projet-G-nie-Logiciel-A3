@@ -14,7 +14,7 @@ namespace LogServer
 
         static async Task Main(string[] args)
         {
-            int port = 8080;
+            int port = 11000;
             TcpListener listener = new TcpListener(IPAddress.Any, port);
             listener.Start();
             Console.WriteLine($"[Server] Ready and listening on port {port}...");
@@ -25,23 +25,23 @@ namespace LogServer
                 TcpClient client = await listener.AcceptTcpClientAsync();
 
                 // Dispatches the client connection to the thread pool for concurrent processing without blocking the main listener.
-                _ = Task.Run(() => HandleClient(client));
+                _ = HandleClientAsync(client);
             }
         }
 
-        static void HandleClient(TcpClient client)
+        static async Task HandleClientAsync(TcpClient client)
         {
             try
             {
                 using (NetworkStream stream = client.GetStream())
                 using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
                 {
-                    string? logMessage = reader.ReadLine();
+                    string? logMessage = await reader.ReadLineAsync();
 
                     if (!string.IsNullOrWhiteSpace(logMessage))
                     {
                         // Derives the dynamic daily log file path based on the current system date.
-                        string fileName = $"logs_{DateTime.Now:dd-MM-yyyy}.log";
+                        string fileName = $"logs_{DateTime.Now:dd-MM-yyyy}.json";
 
                         // Enforces thread synchronization using a static lock to prevent file access violations 
                         // when multiple remote instances attempt to write telemetry data simultaneously.
