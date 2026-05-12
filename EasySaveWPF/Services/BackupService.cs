@@ -253,7 +253,6 @@ namespace EasySaveWPF.Services
                                     cryptoProcess.StartInfo.Arguments = $"\"{file}\" \"{destFile}\"";
                                     cryptoProcess.StartInfo.UseShellExecute = false;
                                     cryptoProcess.StartInfo.CreateNoWindow = true;
-
                                     cryptoProcess.Start();
                                     cryptoProcess.WaitForExit();
 
