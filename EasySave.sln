@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EasySaveWPF", "EasySaveWPF\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CryptoSoft", "CryptoSoft\CryptoSoft.csproj", "{1E6F2160-4C58-4552-B4BC-08DB54BE7784}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LogServer", "LogServer\LogServer.csproj", "{6906B758-E167-4AD3-8CBC-AA5CAD7EA46A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -31,6 +33,10 @@ Global
 		{1E6F2160-4C58-4552-B4BC-08DB54BE7784}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1E6F2160-4C58-4552-B4BC-08DB54BE7784}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1E6F2160-4C58-4552-B4BC-08DB54BE7784}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6906B758-E167-4AD3-8CBC-AA5CAD7EA46A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6906B758-E167-4AD3-8CBC-AA5CAD7EA46A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6906B758-E167-4AD3-8CBC-AA5CAD7EA46A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6906B758-E167-4AD3-8CBC-AA5CAD7EA46A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

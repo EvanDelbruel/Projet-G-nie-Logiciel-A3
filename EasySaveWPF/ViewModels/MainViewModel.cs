@@ -3,29 +3,29 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
-using System.Threading.Tasks; // Required for Task.Run
-using System.Threading; // Required for CancellationTokenSource and ManualResetEvent
-using System.Linq; // Required for LINQ extensions like Cast and ToList
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Linq;
 using EasySaveWPF.Models;
 using EasySaveWPF.Services;
 
 namespace EasySaveWPF.ViewModels
 {
-    // Main view model responsible for handling the primary UI logic, data binding, and user interactions
+    // Coordinates presentation logic, state management, and command routing for the primary user interface.
     public class MainViewModel : ViewModelBase
     {
-        // Path to the local JSON file storing the configured backup jobs
+        // Absolute or relative path defining the persistence layer for application state.
         private readonly string _jobsFilePath = "jobs.json";
 
-        // Observable collection bound to the DataGrid to display current backup jobs
+        // Data-bound collection representing the persisted state of configured backup routines.
         public ObservableCollection<BackupJob> Jobs { get; set; }
 
-        // Collection of available languages for the application UI
+        // Defines the supported localization cultures for the application instance.
         public ObservableCollection<string> AvailableLanguages { get; set; }
 
         private string _selectedLanguage;
 
-        // Currently selected language. Updates UI bindings dynamically when changed
+        // Manages localization state. Triggers the WPF binding engine to refresh localized resources upon mutation.
         public string SelectedLanguage
         {
             get => _selectedLanguage;
@@ -36,7 +36,7 @@ namespace EasySaveWPF.ViewModels
                     _selectedLanguage = value;
                     OnPropertyChanged();
 
-                    // Notify the view to refresh all localized text properties
+                    // Force UI culture refresh by notifying the view of property state invalidations.
                     OnPropertyChanged(nameof(WindowTitle));
                     OnPropertyChanged(nameof(RunButtonText));
                     OnPropertyChanged(nameof(AddButtonText));
@@ -45,75 +45,68 @@ namespace EasySaveWPF.ViewModels
                     OnPropertyChanged(nameof(HeaderSource));
                     OnPropertyChanged(nameof(HeaderTarget));
                     OnPropertyChanged(nameof(HeaderType));
-                    OnPropertyChanged(nameof(PauseButtonText));
-                    OnPropertyChanged(nameof(StopButtonText));
+                    OnPropertyChanged(nameof(HeaderActions));
                 }
             }
         }
 
         private BackupJob _selectedJob;
 
-        // Represents the currently selected job in the UI grid
+        // Maintains the selection state of the UI data grid for targeted command execution.
         public BackupJob SelectedJob
         {
             get => _selectedJob;
             set { _selectedJob = value; OnPropertyChanged(); }
         }
 
-        // Dynamic UI text properties returning localized strings based on the selected language
-        public string WindowTitle => SelectedLanguage == "Français" ? "EasySave 2.0 - Gestionnaire" : "EasySave 2.0 - Manager";
+        // --- Computed Localization Properties ---
+        public string WindowTitle => SelectedLanguage == "Français" ? "EasySave 3.0 - Gestionnaire" : "EasySave 3.0 - Manager";
         public string RunButtonText => SelectedLanguage == "Français" ? "▶ Lancer la sélection" : "▶ Run Selected";
         public string AddButtonText => SelectedLanguage == "Français" ? "➕ Nouveau Travail" : "➕ New Job";
         public string SettingsButtonText => SelectedLanguage == "Français" ? "⚙️ Paramètres" : "⚙️ Settings";
 
-        // Localized strings for Pause and Stop buttons
-        public string PauseButtonText => SelectedLanguage == "Français" ? "⏸ Pause / Play" : "⏸ Pause / Play";
-        public string StopButtonText => SelectedLanguage == "Français" ? "⏹ Stopper" : "⏹ Stop";
-
-        // Localized headers for the DataGrid columns
         public string HeaderName => SelectedLanguage == "Français" ? "Nom" : "Name";
         public string HeaderSource => "Source";
         public string HeaderTarget => SelectedLanguage == "Français" ? "Cible" : "Target";
         public string HeaderType => "Type";
+        public string HeaderActions => "Actions";
 
-        // Commands bound to the main UI buttons
+        // --- Command Infrastructure ---
+        // UI-bound commands delegating execution to the underlying service layer.
         public ICommand RunCommand { get; }
         public ICommand AddCommand { get; }
         public ICommand SettingsCommand { get; }
 
-        // Commands for Pause and Stop actions
+        // Granular process control commands for individual background routines.
         public ICommand PauseCommand { get; }
+        public ICommand ResumeCommand { get; }
         public ICommand StopCommand { get; }
 
-        // Tools for real-time control (Play/Pause/Stop)
-        private CancellationTokenSource _cancellationTokenSource;
-        private ManualResetEvent _pauseEvent = new ManualResetEvent(true); // Starts green
-        private bool _isPaused = false;
+        // Mutex flag preventing concurrent batch executions from the UI thread.
         private bool _isRunning = false;
 
-        // Initializes the view model, sets defaults, loads configurations, and binds commands
+        // Bootstraps the ViewModel, injecting default state, loading persistent data, and mapping ICommands.
         public MainViewModel()
         {
             AvailableLanguages = new ObservableCollection<string> { "Français", "English" };
             _selectedLanguage = "Français";
 
-            // Load application settings such as log format preferences at startup
             LoadSettingsAtStartup();
 
-            // Initialize the job collection by reading the local storage file
+            // Hydrate the observable collection from local storage.
             Jobs = new ObservableCollection<BackupJob>(LoadJobs());
 
-            // Initialize command bindings
+            // Bind UI actions to local event handlers with execution validation where applicable.
             RunCommand = new RelayCommand(ExecuteRun, CanExecuteRun);
             AddCommand = new RelayCommand(ExecuteAdd);
             SettingsCommand = new RelayCommand(ExecuteSettings);
 
-            // Initialize the new commands
-            PauseCommand = new RelayCommand(ExecutePause, CanExecutePauseOrStop);
-            StopCommand = new RelayCommand(ExecuteStop, CanExecutePauseOrStop);
+            PauseCommand = new RelayCommand(ExecutePause);
+            ResumeCommand = new RelayCommand(ExecuteResume);
+            StopCommand = new RelayCommand(ExecuteStop);
         }
 
-        // Reads the settings file to configure application-wide parameters
+        // Resolves configuration parameters into memory to initialize singleton services.
         private void LoadSettingsAtStartup()
         {
             string settingsFilePath = "settings.json";
@@ -122,119 +115,103 @@ namespace EasySaveWPF.ViewModels
                 try
                 {
                     string json = File.ReadAllText(settingsFilePath);
-                    var settings = JsonSerializer.Deserialize<System.Collections.Generic.Dictionary<string, string>>(json);
+                    var settings = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
 
-                    // Inject the user's preferred log format (JSON or XML) into the LoggerService
-                    if (settings != null && settings.TryGetValue("LogFormat", out string? format))
+                    if (settings != null)
                     {
-                        EasyLog.LoggerService.Instance.LogFormat = format;
+                        // Inject telemetry formatting parameters.
+                        if (settings.TryGetValue("LogFormat", out string? format))
+                        {
+                            EasyLog.LoggerService.Instance.LogFormat = format;
+                        }
+
+                        // Inject network routing configurations for remote telemetry.
+                        if (settings.TryGetValue("LogDestination", out string? dest))
+                        {
+                            EasyLog.LoggerService.Instance.LogDestination = dest;
+                        }
                     }
                 }
-                catch { } // Retain default JSON format if the settings file is corrupted or unreadable
+                catch { } // Swallow transient I/O or parsing exceptions to ensure application resilience.
             }
         }
 
-        // Executes the selected backup jobs (handles multiple selection in PARALLEL)
+        // Asynchronously dispatches batch backup operations utilizing concurrent task execution.
         private async void ExecuteRun(object parameter)
         {
-            // Casts the parameter received from the XAML into a list of items
             var selectedItems = parameter as System.Collections.IList;
 
-            // Failsafe in case nothing is selected or if jobs are already running
+            // Pre-execution validation: ensure valid payload and lack of active processing lock.
             if (selectedItems == null || selectedItems.Count == 0 || _isRunning) return;
 
-            // Extract the selected jobs into a list
             var jobsToRun = selectedItems.Cast<BackupJob>().ToList();
-            var allJobs = new System.Collections.Generic.List<BackupJob>(Jobs);
-            int successCount = 0;
+            var allJobs = new List<BackupJob>(Jobs);
 
-            // Reset the control tools for a new session
-            _cancellationTokenSource = new CancellationTokenSource();
-            _pauseEvent.Set(); // Make sure the light is Green
-            _isPaused = false;
+            // Acquire lock and force WPF framework to re-evaluate command execution states.
             _isRunning = true;
-
-            // Force UI buttons to update their state
             CommandManager.InvalidateRequerySuggested();
 
             try
             {
-                // Run the heavy backup process in a separate background thread to keep the UI responsive
-                await Task.Run(() =>
+                BackupService service = new BackupService();
+                var runningTasks = new List<Task>();
+
+                // Fork processes: Initiate IO-bound operations without awaiting immediately.
+                foreach (var job in jobsToRun)
                 {
-                    // Execute all selected jobs in parallel (Multithreading)
-                    Parallel.ForEach(jobsToRun, jobToRun =>
-                    {
-                        BackupService service = new BackupService();
-
-                        // We pass the pauseEvent and the cancellation token to the service
-                        service.ExecuteBackup(jobToRun, allJobs, _pauseEvent, _cancellationTokenSource.Token);
-
-                        // Thread-safe increment of the success counter using Interlocked
-                        System.Threading.Interlocked.Increment(ref successCount);
-                    });
-                });
-
-                // Notifies the user once the entire parallel queue is finished (if not cancelled)
-                if (!_cancellationTokenSource.IsCancellationRequested)
-                {
-                    MessageBox.Show(
-                        SelectedLanguage == "Français" ? $"{successCount} tâche(s) terminée(s) !" : $"{successCount} task(s) finished!",
-                        "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                    runningTasks.Add(service.ExecuteBackupAsync(job, allJobs));
                 }
+
+                // Join processes: Suspend current context until all child tasks resolve.
+                await Task.WhenAll(runningTasks);
+
+                MessageBox.Show(
+                    SelectedLanguage == "Français" ? $"Exécution terminée pour les tâches sélectionnées !" : $"Execution finished for selected tasks!",
+                    "Info", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (System.Exception ex)
             {
-                // If the error is an OperationCanceledException, we just swallow it (it's a normal Stop)
-                if (ex.InnerException is System.OperationCanceledException || ex is System.OperationCanceledException)
-                {
-                    MessageBox.Show(SelectedLanguage == "Français" ? "Travaux stoppés." : "Jobs stopped.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                else
-                {
-                    // Halts the sequence and warns the user if an error occurs (e.g. business software interrupts)
-                    MessageBox.Show(ex.Message, "Attention / Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
+                MessageBox.Show(ex.Message, "Attention / Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             finally
             {
+                // Release execution lock and restore UI interaction capabilities.
                 _isRunning = false;
                 CommandManager.InvalidateRequerySuggested();
             }
         }
 
-        // Execution logic for Pause/Play
+        // --- Thread Lifecycle Management Proxies ---
+
+        // Triggers the ManualResetEvent associated with the target thread to suspend execution.
         private void ExecutePause(object parameter)
         {
-            if (_isPaused)
-            {
-                _isPaused = false;
-                _pauseEvent.Set(); // Green light: Resume
-            }
-            else
-            {
-                _isPaused = true;
-                _pauseEvent.Reset(); // Red light: Pause
-            }
+            if (parameter is BackupJob job)
+                new BackupService().PauseJob(job.Name);
         }
 
-        // Execution logic for Stop
+        // Signals the ManualResetEvent to unblock thread execution.
+        private void ExecuteResume(object parameter)
+        {
+            if (parameter is BackupJob job)
+                new BackupService().ResumeJob(job.Name);
+        }
+
+        // Invokes the CancellationToken to gracefully terminate the asynchronous operation.
         private void ExecuteStop(object parameter)
         {
-            if (_isRunning && _cancellationTokenSource != null)
-            {
-                _pauseEvent.Set(); // We must unlock paused threads so they can read the cancellation token!
-                _cancellationTokenSource.Cancel(); // Fire the Stop signal
-            }
+            if (parameter is BackupJob job)
+                new BackupService().StopJob(job.Name);
         }
 
-        // Determines whether the Run command can execute (requires a selected job and no running process)
-        private bool CanExecuteRun(object parameter) => SelectedJob != null && !_isRunning;
+        // Validates the application state against execution prerequisites to enable/disable UI controls.
+        private bool CanExecuteRun(object parameter)
+        {
+            var selectedItems = parameter as System.Collections.IList;
+            return selectedItems != null && selectedItems.Count > 0 && !_isRunning;
+        }
 
-        // Pause and Stop buttons are only active when jobs are actually running
-        private bool CanExecutePauseOrStop(object parameter) => _isRunning;
-
-        // Opens the Add Job dialog and appends the new configuration to the collection upon success
+        // Instantiates the job creation view and handles data aggregation upon successful dialog resolution.
         private void ExecuteAdd(object parameter)
         {
             var addWindow = new Views.AddJobWindow(SelectedLanguage);
@@ -246,22 +223,22 @@ namespace EasySaveWPF.ViewModels
             }
         }
 
-        // Opens the application settings dialog, passing the current language for localization
+        // Dispatches the configuration context to a dedicated modal view.
         private void ExecuteSettings(object parameter)
         {
             var settingsWindow = new Views.SettingsWindow(SelectedLanguage);
             settingsWindow.ShowDialog();
         }
 
-        // Deserializes and loads backup jobs from the local JSON storage
-        private System.Collections.Generic.List<BackupJob> LoadJobs()
+        // Reconstructs the internal state mapping by deserializing the persistence file.
+        private List<BackupJob> LoadJobs()
         {
-            if (!File.Exists(_jobsFilePath)) return new System.Collections.Generic.List<BackupJob>();
+            if (!File.Exists(_jobsFilePath)) return new List<BackupJob>();
             string json = File.ReadAllText(_jobsFilePath);
-            return JsonSerializer.Deserialize<System.Collections.Generic.List<BackupJob>>(json) ?? new System.Collections.Generic.List<BackupJob>();
+            return JsonSerializer.Deserialize<List<BackupJob>>(json) ?? new List<BackupJob>();
         }
 
-        // Serializes and saves the current collection of backup jobs to the local JSON storage
+        // Commits the current memory state to the local filesystem for persistence across sessions.
         private void SaveJobs()
         {
             string json = JsonSerializer.Serialize(Jobs, new JsonSerializerOptions { WriteIndented = true });

@@ -1,20 +1,33 @@
-using System;
+using System.ComponentModel; // Essential for the UI
 
 namespace EasySaveWPF.Models
 {
-    // Represents a backup task containing all necessary configuration details
-    public class BackupJob
+    // Implementing INotifyPropertyChanged is MANDATORY for WPF to update the progress bar in real-time
+    public class BackupJob : INotifyPropertyChanged
     {
-        // Core properties defining the backup job parameters
-        public string Name { get; set; }
-        public string SourceDirectory { get; set; }
-        public string TargetDirectory { get; set; }
-        public string Type { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string SourceDirectory { get; set; } = string.Empty;
+        public string TargetDirectory { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
 
-        // Parameterless constructor strictly required for JSON serialization and deserialization
+        // The progress parameter
+        private int _progression;
+        public int Progression
+        {
+            get => _progression;
+            set
+            {
+                if (_progression != value)
+                {
+                    _progression = value;
+                    // Notifies the UI that the value has changed, triggering a visual update
+                    OnPropertyChanged(nameof(Progression));
+                }
+            }
+        }
+
         public BackupJob() { }
 
-        // Initializes a new backup job instance with specific configuration parameters
         public BackupJob(string name, string sourceDirectory, string targetDirectory, string type)
         {
             Name = name;
@@ -23,10 +36,16 @@ namespace EasySaveWPF.Models
             Type = type;
         }
 
-        // Overrides the default string representation to provide a formatted output for UI and debugging
         public override string ToString()
         {
             return $"{Name} | Source: {SourceDirectory} | Target: {TargetDirectory} | Type: {Type}";
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 }

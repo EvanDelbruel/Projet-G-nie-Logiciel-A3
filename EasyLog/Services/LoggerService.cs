@@ -1,146 +1,182 @@
-﻿using EasyLog.Models;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
-using System.Xml.Serialization; // Required for XML serialization
+using System.Threading.Tasks;
+using System.Xml.Serialization;
+using EasyLog.Models;
 
 namespace EasyLog
 {
-    // Singleton service responsible for handling application logs and real-time state tracking.
-    // Supports both JSON and XML file formats for daily logs.
-    public sealed class LoggerService
+    // Singleton service responsible for handling application logs and state tracking.
+    // Ensures thread-safe writing operations across multiple backup jobs.
+    public class LoggerService
     {
-        // Static variables for the Singleton pattern implementation and thread synchronization
-        private static LoggerService _instance = null;
-        private static readonly object _padlock = new object();
+        private static LoggerService? _instance;
+        private static readonly object _lock = new object(); // Lock object to prevent concurrent access issues
 
-        //  Locks to synchronize file writing across multiple threads
-        private static readonly object _logLock = new object();
-        private static readonly object _stateLock = new object();
-
-        private readonly string _logDirectory = "Logs";
-        private readonly string _stateFilePath;
-
-        // Gets or sets the preferred log format. 
-        // Defaults to "JSON" to ensure backward compatibility and prevent breaking changes.
-        public string LogFormat { get; set; } = "JSON";
-
-        // Private constructor to prevent direct instantiation
-        private LoggerService()
-        {
-            // Ensure the base log directory exists upon initialization
-            if (!Directory.Exists(_logDirectory))
-            {
-                Directory.CreateDirectory(_logDirectory);
-            }
-
-            _stateFilePath = Path.Combine(_logDirectory, "state.json");
-        }
-
-        // Gets the single, thread-safe instance of the LoggerService.
+        // Gets the single instance of the LoggerService
         public static LoggerService Instance
         {
             get
             {
-                // The lock ensures thread safety so only one thread can instantiate the service at a time
-                lock (_padlock)
+                lock (_lock)
                 {
-                    if (_instance == null)
-                    {
-                        _instance = new LoggerService();
-                    }
+                    if (_instance == null) _instance = new LoggerService();
                     return _instance;
                 }
             }
         }
 
-        // Appends a new log entry to the daily log file based on the configured LogFormat.
-        //  Added lock to prevent concurrent write operations from multiple threads
-        public void WriteLog(LogModel logEntry)
+        // --- Configuration Properties ---
+        public string LogFormat { get; set; } = "JSON";
+
+        public string LogDestination { get; set; } = "Local"; // Can be: "Local", "Docker", or "Both"
+        public string DockerIp { get; set; } = "127.0.0.1";
+        public int DockerPort { get; set; } = 8080;
+
+        // Private constructor to enforce Singleton pattern
+        private LoggerService() { }
+
+        // Writes a log entry to the configured destinations (Local file and/or Docker server)
+        public void WriteLog(LogModel log)
         {
-            lock (_logLock)
+            lock (_lock) // Ensure only one thread writes a log at a time
             {
-                List<LogModel> dailyLogs = new List<LogModel>();
-
-                // XML FORMAT HANDLING
-                if (LogFormat.ToUpper() == "XML")
+                // 1. Write to LOCAL storage (if configured)
+                if (LogDestination == "Local" || LogDestination == "Both")
                 {
-                    string dailyLogFile = Path.Combine(_logDirectory, $"log_{DateTime.Now:yyyy-MM-dd}.xml");
-
-                    if (File.Exists(dailyLogFile))
+                    // Create the "Logs" directory to keep the root folder clean
+                    string logsDirectory = "Logs";
+                    if (!Directory.Exists(logsDirectory))
                     {
-                        try
-                        {
-                            // Read and deserialize the existing XML file content
-                            XmlSerializer deserializer = new XmlSerializer(typeof(List<LogModel>));
-                            using (TextReader reader = new StreamReader(dailyLogFile))
-                            {
-                                dailyLogs = (List<LogModel>)deserializer.Deserialize(reader);
-                            }
-                        }
-                        catch
-                        {
-                            // Initialize a new list if the file is corrupted or unreadable
-                            dailyLogs = new List<LogModel>();
-                        }
+                        Directory.CreateDirectory(logsDirectory);
                     }
 
-                    dailyLogs.Add(logEntry);
+                    // Determine the file path based on the selected format
+                    string filePath = LogFormat == "XML"
+                        ? Path.Combine(logsDirectory, $"logs_{DateTime.Now:dd-MM-yyyy}.xml")
+                        : Path.Combine(logsDirectory, $"logs_{DateTime.Now:dd-MM-yyyy}.json");
 
-                    // Serialize and overwrite the updated list in XML format
-                    XmlSerializer serializer = new XmlSerializer(typeof(List<LogModel>));
-                    using (TextWriter writer = new StreamWriter(dailyLogFile))
+                    if (LogFormat == "XML")
                     {
-                        serializer.Serialize(writer, dailyLogs);
+                        WriteXml(log, filePath);
+                    }
+                    else
+                    {
+                        WriteJson(log, filePath);
                     }
                 }
-                // JSON FORMAT HANDLING (DEFAULT)
-                else
+
+                // 2. Send to DOCKER server (if configured)
+                if (LogDestination == "Docker" || LogDestination == "Both")
                 {
-                    string dailyLogFile = Path.Combine(_logDirectory, $"log_{DateTime.Now:yyyy-MM-dd}.json");
+                    // Always format as JSON for network transmission to ensure compatibility
+                    string jsonLog = JsonSerializer.Serialize(log);
 
-                    if (File.Exists(dailyLogFile))
-                    {
-                        string existingContent = File.ReadAllText(dailyLogFile);
-                        if (!string.IsNullOrWhiteSpace(existingContent))
-                        {
-                            try
-                            {
-                                // Read and deserialize the existing JSON file content
-                                dailyLogs = JsonSerializer.Deserialize<List<LogModel>>(existingContent) ?? new List<LogModel>();
-                            }
-                            catch
-                            {
-                                // Initialize a new list if deserialization fails
-                                dailyLogs = new List<LogModel>();
-                            }
-                        }
-                    }
-
-                    dailyLogs.Add(logEntry);
-
-                    // Serialize and overwrite the updated list in indented JSON format
-                    var options = new JsonSerializerOptions { WriteIndented = true };
-                    string jsonString = JsonSerializer.Serialize(dailyLogs, options);
-
-                    File.WriteAllText(dailyLogFile, jsonString);
+                    // Fire-and-forget: Launch the async network task without awaiting it.
+                    // This prevents network latency from slowing down the file copy process.
+                    _ = SendLogToDockerAsync(jsonLog);
                 }
-            } // End of _logLock
+            }
         }
 
-        // Updates the real-time state file with the current progress of all tracked jobs.
-        // The state file is strictly maintained in JSON format for optimized real-time reading.
-        //  Added lock to prevent concurrent write operations from multiple threads
-        public void WriteState(List<StateModel> allStates)
+        // Overwrites the state.json file with the current progress of all active backup jobs
+        public void WriteState(List<StateModel> states)
         {
-            lock (_stateLock)
+            lock (_lock)
             {
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                string jsonString = JsonSerializer.Serialize(allStates, options);
+                // Create the "State" directory to keep the root folder clean
+                string stateDirectory = "State";
+                if (!Directory.Exists(stateDirectory))
+                {
+                    Directory.CreateDirectory(stateDirectory);
+                }
 
-                File.WriteAllText(_stateFilePath, jsonString);
-            } // End of _stateLock
+                string filePath = Path.Combine(stateDirectory, "state.json");
+
+                // Serialize the list with indentation for better readability
+                string json = JsonSerializer.Serialize(states, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(filePath, json);
+            }
+        }
+
+
+        // Sends the log message asynchronously to the Docker log server via TCP.
+        // Fails silently if the server is offline.
+        private async Task SendLogToDockerAsync(string message)
+        {
+            try
+            {
+                using (TcpClient client = new TcpClient())
+                {
+                    // Attempt to connect to the Docker server
+                    var connectTask = client.ConnectAsync(DockerIp, DockerPort);
+
+                    // Implement a 2-second timeout to avoid hanging the process if the server is unreachable
+                    if (await Task.WhenAny(connectTask, Task.Delay(2000)) == connectTask)
+                    {
+                        using (NetworkStream stream = client.GetStream())
+                        {
+                            // REQUIREMENT COMPLIANCE: Append the user's identity and machine name to the log message
+                            string identity = $"[User: {Environment.UserName} | PC: {Environment.MachineName}] ";
+                            string finalMessage = identity + message + Environment.NewLine;
+
+                            byte[] data = Encoding.UTF8.GetBytes(finalMessage);
+                            await stream.WriteAsync(data, 0, data.Length);
+                            await stream.FlushAsync();
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Silent catch: If Docker is offline, the backup must continue without crashing
+            }
+        }
+
+        // Appends a new log entry to an existing JSON file, or creates a new one
+        private void WriteJson(LogModel log, string filePath)
+        {
+            List<LogModel> logs = new List<LogModel>();
+            if (File.Exists(filePath))
+            {
+                try
+                {
+                    string existingJson = File.ReadAllText(filePath);
+                    logs = JsonSerializer.Deserialize<List<LogModel>>(existingJson) ?? new List<LogModel>();
+                }
+                catch { }
+            }
+            logs.Add(log);
+            File.WriteAllText(filePath, JsonSerializer.Serialize(logs, new JsonSerializerOptions { WriteIndented = true }));
+        }
+
+        // Appends a new log entry to an existing XML file, or creates a new one
+        private void WriteXml(LogModel log, string filePath)
+        {
+            List<LogModel> logs = new List<LogModel>();
+            XmlSerializer serializer = new XmlSerializer(typeof(List<LogModel>));
+
+            if (File.Exists(filePath))
+            {
+                try
+                {
+                    using (StreamReader reader = new StreamReader(filePath))
+                    {
+                        logs = (List<LogModel>)(serializer.Deserialize(reader) ?? new List<LogModel>());
+                    }
+                }
+                catch { }
+            }
+
+            logs.Add(log);
+            using (StreamWriter writer = new StreamWriter(filePath))
+            {
+                serializer.Serialize(writer, logs);
+            }
         }
     }
 }

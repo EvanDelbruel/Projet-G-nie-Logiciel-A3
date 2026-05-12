@@ -1,6 +1,6 @@
 ﻿using System.Windows;
 using EasySaveWPF.Models;
-using EasySaveWPF.Factories;
+
 namespace EasySaveWPF.Views
 {
     public partial class AddJobWindow : Window
@@ -35,12 +35,12 @@ namespace EasySaveWPF.Views
             }
 
             // Instantiates the backup job model using the provided UI inputs
-            CreatedJob = BackupJobFactory.CreateJob(
-                    TxtName.Text,
-                    TxtSource.Text,
-                    TxtTarget.Text,
-                    CmbType.Text
-                );
+            CreatedJob = new BackupJob(
+                TxtName.Text,
+                TxtSource.Text,
+                TxtTarget.Text,
+                CmbType.Text
+            );
 
             // Signals successful completion to the parent window and closes the dialog
             DialogResult = true;

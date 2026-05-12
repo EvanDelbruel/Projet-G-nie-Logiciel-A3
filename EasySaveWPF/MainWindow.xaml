@@ -5,7 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:EasySaveWPF.ViewModels"
         mc:Ignorable="d"
-        Title="{Binding WindowTitle}" Height="500" Width="900" WindowStartupLocation="CenterScreen">
+        Title="{Binding WindowTitle}" Height="500" Width="900" WindowStartupLocation="CenterScreen"
+        Icon="/Resources/app_icon.ico">
 
     <Grid Background="#F5F5F5">
         <Grid.RowDefinitions>
@@ -16,7 +17,10 @@
 
         <Border Grid.Row="0" Background="#2C3E50" Padding="15">
             <Grid>
-                <TextBlock Text="{Binding WindowTitle}" Foreground="White" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image Source="/Resources/logo.png" Height="30" Width="30" Margin="0,0,15,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <TextBlock Text="{Binding WindowTitle}" Foreground="White" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
+                </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="{Binding SettingsButtonText}" Command="{Binding SettingsCommand}" 
@@ -60,6 +64,46 @@
                         <TextBlock Text="{Binding DataContext.HeaderType, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
                     </DataGridTextColumn.Header>
                 </DataGridTextColumn>
+
+                <DataGridTemplateColumn Header="Progression" Width="150">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Grid Margin="5">
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progression}" Height="20" Foreground="#2ECC71" Background="#EEEEEE"/>
+                                <TextBlock Text="{Binding Progression, StringFormat={}{0}%}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="Black"/>
+                            </Grid>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Width="120">
+                    <DataGridTemplateColumn.Header>
+                        <TextBlock Text="{Binding DataContext.HeaderActions, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
+                    </DataGridTemplateColumn.Header>
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Button Content="⏸" 
+                                        Command="{Binding DataContext.PauseCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
+                                        CommandParameter="{Binding}" 
+                                        Width="25" Height="25" Margin="2" Cursor="Hand" Background="#F1C40F" Foreground="Black" BorderThickness="0"
+                                        ToolTip="Pause"/>
+
+                                <Button Content="▶" 
+                                        Command="{Binding DataContext.ResumeCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
+                                        CommandParameter="{Binding}" 
+                                        Width="25" Height="25" Margin="2" Cursor="Hand" Background="#2ECC71" Foreground="White" BorderThickness="0"
+                                        ToolTip="Play / Resume"/>
+
+                                <Button Content="⏹" 
+                                        Command="{Binding DataContext.StopCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
+                                        CommandParameter="{Binding}" 
+                                        Width="25" Height="25" Margin="2" Cursor="Hand" Background="#E74C3C" Foreground="White" BorderThickness="0"
+                                        ToolTip="Stop"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
 
@@ -68,16 +112,6 @@
 
                 <Button Content="{Binding AddButtonText}" Command="{Binding AddCommand}" 
                         Margin="0,0,10,0" Padding="15,10" Background="#27AE60" Foreground="White" 
-                        FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
-
-
-                <Button Content="{Binding StopButtonText}" Command="{Binding StopCommand}" 
-                        Margin="0,0,10,0" Padding="15,10" Background="#E74C3C" Foreground="White" 
-                        FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
-
-
-                <Button Content="{Binding PauseButtonText}" Command="{Binding PauseCommand}" 
-                        Margin="0,0,10,0" Padding="15,10" Background="#F39C12" Foreground="White" 
                         FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
 
                 <Button Content="{Binding RunButtonText}" Command="{Binding RunCommand}" 
