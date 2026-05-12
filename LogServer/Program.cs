@@ -16,27 +16,16 @@ namespace LogServer
         {
             int port = 8080;
             TcpListener listener = new TcpListener(IPAddress.Any, port);
-
-            try
-            {
-                listener.Start();
+            listener.Start();
             Console.WriteLine($"[Server] Ready and listening on port {port}...");
 
             // Establishes a continuous listener loop to accept incoming TCP client connections asynchronously.
-                while (true)
-                {
-                    TcpClient client = await listener.AcceptTcpClientAsync();
+            while (true)
+            {
+                TcpClient client = await listener.AcceptTcpClientAsync();
 
                 // Dispatches the client connection to the thread pool for concurrent processing without blocking the main listener.
                 _ = Task.Run(() => HandleClient(client));
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Erreur] {ex.Message}");
-            }
-            finally
-            {
-                listener.Stop();
             }
         }
 

@@ -22,7 +22,6 @@ namespace EasySaveWPF.Views
             {
                 Title = "Settings";
                 LblLogFormat.Text = "Log Format (JSON or XML):";
-                LblLogTarget.Text = "Logs Location:";
                 LblBusinessSoftware.Text = "Blocking business software (e.g., notepad, CalculatorApp):";
                 LblCryptoExtensions.Text = "Extensions to encrypt (separated by a comma, e.g.: .txt, .pdf):";
 
@@ -46,10 +45,6 @@ namespace EasySaveWPF.Views
             TxtCryptoExtensions.Text = ".txt,.pdf";
             TxtPriorityExtensions.Text = ".txt";
             TxtMaxFileSize.Text = "50";
-
-            // VALEURS PAR DÉFAUT DES NOUVEAUX CHAMPS
-            TxtPriorityExtensions.Text = ".iso,.mp4";
-            TxtMaxFileSize.Text = "52428800"; // 50 Mo par défaut
 
             if (File.Exists(_settingsFilePath))
             {
@@ -100,7 +95,6 @@ namespace EasySaveWPF.Views
             var settings = new Dictionary<string, string>
             {
                 { "LogFormat", CmbLogFormat.Text },
-                { "LogTarget", CmbLogTarget.Text },
                 { "BusinessSoftware", TxtBusinessSoftware.Text },
                 { "CryptoExtensions", TxtCryptoExtensions.Text },
                 { "PriorityExtensions", TxtPriorityExtensions.Text },
