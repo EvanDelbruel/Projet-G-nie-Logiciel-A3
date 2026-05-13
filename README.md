@@ -80,8 +80,8 @@ Launch `EasySaveWPF.exe`. The main interface allows you to manage the job list a
 
 ### Command Line Interface (CLI) Mode
 The software supports direct execution via launch arguments:
-* `EasySave.exe 1-3`: Automatic execution of jobs 1 to 3.
-* `EasySave.exe 1;3;5`: Selective execution of the indicated jobs.
+* `EasySaveWPF.exe 1-3`: Automatic execution of jobs 1 to 3.
+* `EasySaveWPF.exe 1;3;5`: Selective execution of the indicated jobs.
 
 ---
 
