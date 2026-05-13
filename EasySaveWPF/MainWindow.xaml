@@ -1,4 +1,4 @@
-﻿<Window x:Class="EasySaveWPF.MainWindow"
+<Window x:Class="EasySaveWPF.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -89,18 +89,21 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Width="120">
+                <DataGridTemplateColumn Width="200">
                     <DataGridTemplateColumn.Header>
                         <TextBlock Text="{Binding DataContext.HeaderActions, RelativeSource={RelativeSource AncestorType=DataGrid}}"/>
                     </DataGridTemplateColumn.Header>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <Button Content="⏸" 
-                                        Command="{Binding DataContext.PauseCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
+                                <Button Command="{Binding DataContext.PauseCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
                                         CommandParameter="{Binding}" 
-                                        Width="25" Height="25" Margin="2" Cursor="Hand" Background="#F1C40F" Foreground="Black" BorderThickness="0"
+                                        Height="28" Padding="8,0" Margin="2" Cursor="Hand" Background="#F1C40F" Foreground="Black" BorderThickness="0"
                                         ToolTip="Pause">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="⏸" Margin="0,0,5,0" FontWeight="Bold"/>
+                                        <TextBlock Text="{Binding DataContext.ActionPause, RelativeSource={RelativeSource AncestorType=DataGrid}}" VerticalAlignment="Center" FontWeight="Bold"/>
+                                    </StackPanel>
                                     <Button.Style>
                                         <Style TargetType="Button">
                                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -113,11 +116,14 @@
                                     </Button.Style>
                                 </Button>
 
-                                <Button Content="▶" 
-                                        Command="{Binding DataContext.ResumeCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
+                                <Button Command="{Binding DataContext.ResumeCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
                                         CommandParameter="{Binding}" 
-                                        Width="25" Height="25" Margin="2" Cursor="Hand" Background="#2ECC71" Foreground="White" BorderThickness="0"
+                                        Height="28" Padding="8,0" Margin="2" Cursor="Hand" Background="#2ECC71" Foreground="White" BorderThickness="0"
                                         ToolTip="Play / Resume">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="▶" Margin="0,0,5,0" FontWeight="Bold"/>
+                                        <TextBlock Text="{Binding DataContext.ActionPlay, RelativeSource={RelativeSource AncestorType=DataGrid}}" VerticalAlignment="Center" FontWeight="Bold"/>
+                                    </StackPanel>
                                     <Button.Style>
                                         <Style TargetType="Button">
                                             <Setter Property="Visibility" Value="Visible"/>
@@ -130,11 +136,14 @@
                                     </Button.Style>
                                 </Button>
 
-                                <Button Content="⏹" 
-                                        Command="{Binding DataContext.StopCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
+                                <Button Command="{Binding DataContext.StopCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
                                         CommandParameter="{Binding}" 
-                                        Width="25" Height="25" Margin="2" Cursor="Hand" Background="#E74C3C" Foreground="White" BorderThickness="0"
+                                        Height="28" Padding="8,0" Margin="2" Cursor="Hand" Background="#E74C3C" Foreground="White" BorderThickness="0"
                                         ToolTip="Stop">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="⏹" Margin="0,0,5,0" FontWeight="Bold"/>
+                                        <TextBlock Text="{Binding DataContext.ActionStop, RelativeSource={RelativeSource AncestorType=DataGrid}}" VerticalAlignment="Center" FontWeight="Bold"/>
+                                    </StackPanel>
                                     <Button.Style>
                                         <Style TargetType="Button">
                                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -159,13 +168,23 @@
         <Border Grid.Row="2" Background="White" BorderBrush="#EEEEEE" BorderThickness="0,1,0,0" Padding="15">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
 
-                <Button Content="{Binding AddButtonText}" Command="{Binding AddCommand}" 
-                        Margin="0,0,10,0" Padding="15,10" Background="#27AE60" Foreground="White" 
+                <Button Content="{Binding PauseButtonText}" Command="{Binding PauseSelectedCommand}" 
+                        CommandParameter="{Binding ElementName=JobsGrid, Path=SelectedItems}"
+                        Margin="0,0,10,0" Padding="15,10" Background="#F39C12" Foreground="White" 
+                        FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
+
+                <Button Content="{Binding StopButtonText}" Command="{Binding StopSelectedCommand}" 
+                        CommandParameter="{Binding ElementName=JobsGrid, Path=SelectedItems}"
+                        Margin="0,0,30,0" Padding="15,10" Background="#E74C3C" Foreground="White" 
                         FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
 
                 <Button Content="{Binding RunButtonText}" Command="{Binding RunCommand}" 
                         CommandParameter="{Binding ElementName=JobsGrid, Path=SelectedItems}"
-                        Padding="15,10" Background="#2980B9" Foreground="White" 
+                        Margin="0,0,10,0" Padding="15,10" Background="#2980B9" Foreground="White" 
+                        FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
+
+                <Button Content="{Binding AddButtonText}" Command="{Binding AddCommand}" 
+                        Padding="15,10" Background="#27AE60" Foreground="White" 
                         FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
 
             </StackPanel>

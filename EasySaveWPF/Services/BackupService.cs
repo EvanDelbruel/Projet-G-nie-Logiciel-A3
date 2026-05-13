@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Diagnostics;
 using System.Collections.Generic;
@@ -31,7 +31,11 @@ namespace EasySaveWPF.Services
 
         public void StopJob(string jobName)
         {
-            if (ActiveControllers.ContainsKey(jobName)) ActiveControllers[jobName].CancelTokenSource.Cancel();
+            if (ActiveControllers.ContainsKey(jobName)) 
+            {
+                ActiveControllers[jobName].CancelTokenSource.Cancel();
+                ActiveControllers[jobName].PauseEvent.Set(); // Wake up thread if paused so it can stop
+            }
         }
 
         public async Task ExecuteBackupAsync(BackupJob activeJob, List<BackupJob> allJobs)
@@ -261,7 +265,10 @@ namespace EasySaveWPF.Services
                                     cryptoProcess.StartInfo.UseShellExecute = false;
                                     cryptoProcess.StartInfo.CreateNoWindow = true;
                                     cryptoProcess.Start();
-                                    cryptoProcess.WaitForExit();
+                                    using (cancelToken.Register(() => { try { if (!cryptoProcess.HasExited) cryptoProcess.Kill(); } catch { } }))
+                                    {
+                                        cryptoProcess.WaitForExit();
+                                    }
 
                                     if (cryptoProcess.ExitCode != 0) throw new Exception("Encryption process returned a non-zero exit code.");
 
@@ -273,6 +280,13 @@ namespace EasySaveWPF.Services
                                     Console.WriteLine($"Encryption Exception: {ex.Message}");
                                     swCrypto.Stop();
                                     encryptTimeMs = -1;
+                                    
+                                    if (cancelToken.IsCancellationRequested)
+                                    {
+                                        if (File.Exists(destFile)) File.Delete(destFile);
+                                        throw new OperationCanceledException();
+                                    }
+
                                     File.Copy(file, destFile, true); // Fallback: Proceed with standard file copy
 
                                     totalBytesProcessed += fileSize;
@@ -339,7 +353,16 @@ namespace EasySaveWPF.Services
                                     swTransfer.Stop();
                                     transferTimeMs = swTransfer.Elapsed.TotalMilliseconds;
                                 }
-                                catch (Exception) { swTransfer.Stop(); transferTimeMs = -1; }
+                                catch (Exception ex) 
+                                { 
+                                    swTransfer.Stop(); 
+                                    transferTimeMs = -1; 
+                                    if (ex is OperationCanceledException)
+                                    {
+                                        if (File.Exists(destFile)) File.Delete(destFile);
+                                        throw;
+                                    }
+                                }
                             }
 
                             // Commit telemetry data

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
@@ -10,7 +10,10 @@ using EasyLog.Models;
 
 namespace EasyLog
 {
-    // Singleton service responsible for handling application logs and state tracking.
+    // DESIGN PATTERN: Singleton Pattern
+    // This class implements the Singleton pattern to guarantee that only one instance 
+    // of LoggerService exists throughout the application lifecycle. This is crucial for
+    // ensuring thread-safe logging and preventing file access conflicts across parallel tasks.
     // Ensures thread-safe writing operations across multiple backup jobs.
     public class LoggerService
     {
