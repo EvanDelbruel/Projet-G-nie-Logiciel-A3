@@ -114,6 +114,8 @@ namespace EasySaveWPF.Views
 
             // Overwrite local storage with the serialized representation of the updated context.
             string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+            string dir = Path.GetDirectoryName(_settingsFilePath);
+            if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
             File.WriteAllText(_settingsFilePath, json);
 
             // Hot-reload critical configuration properties directly into active singleton instances.

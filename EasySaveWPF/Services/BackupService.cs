@@ -49,7 +49,7 @@ namespace EasySaveWPF.Services
             List<string> cryptoExtensions = new List<string>();
             List<string> priorityExtensions = new List<string> { ".txt" };
             long maxFileSizeLimitBytes = 50 * 1024;
-            string settingsFilePath = "settings.json";
+            string settingsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EasySave", "settings.json");
 
             // Load application settings from the configuration file
             if (File.Exists(settingsFilePath))
@@ -140,11 +140,14 @@ namespace EasySaveWPF.Services
 
             var activeState = allStates.First(s => s.Name == activeJob.Name);
             bool wasStoppedByUser = false;
+            long totalBytesProcessed = 0;
 
             try
             {
                 await Task.Run(async () =>
                 {
+                    Application.Current.Dispatcher.Invoke(() => { activeJob.State = "Active"; });
+
                     foreach (string file in filesToCopy)
                     {
                         // Enforce cancellation requests
@@ -153,11 +156,13 @@ namespace EasySaveWPF.Services
                         // Enforce thread synchronization for user-initiated pauses
                         if (!pauseEvent.WaitOne(0))
                         {
+                            Application.Current.Dispatcher.Invoke(() => { activeJob.State = "Paused"; });
                             activeState.State = "Paused";
                             LoggerService.Instance.WriteState(allStates);
 
                             pauseEvent.WaitOne(); // Suspend thread execution until signaled
 
+                            Application.Current.Dispatcher.Invoke(() => { activeJob.State = "Active"; });
                             activeState.State = "Active";
                             LoggerService.Instance.WriteState(allStates);
                         }
@@ -169,6 +174,7 @@ namespace EasySaveWPF.Services
                         {
                             if (!wasPausedBySoftware)
                             {
+                                Application.Current.Dispatcher.Invoke(() => { activeJob.State = "Paused"; });
                                 activeState.State = "Paused (Software)";
                                 LoggerService.Instance.WriteState(allStates);
                                 wasPausedBySoftware = true;
@@ -188,6 +194,7 @@ namespace EasySaveWPF.Services
 
                         if (wasPausedBySoftware)
                         {
+                            Application.Current.Dispatcher.Invoke(() => { activeJob.State = "Active"; });
                             activeState.State = "Active";
                             LoggerService.Instance.WriteState(allStates);
 
@@ -267,19 +274,68 @@ namespace EasySaveWPF.Services
                                     swCrypto.Stop();
                                     encryptTimeMs = -1;
                                     File.Copy(file, destFile, true); // Fallback: Proceed with standard file copy
+
+                                    totalBytesProcessed += fileSize;
+                                    int fallbackProgression = totalSize > 0 ? (int)((totalBytesProcessed / (double)totalSize) * 100) : 100;
+                                    activeState.Progression = fallbackProgression;
+                                    Application.Current.Dispatcher.Invoke(() => { activeJob.Progression = fallbackProgression; });
                                 }
                                 finally
                                 {
                                     SyncManager.CryptoSemaphore.Release();
                                 }
+
+                                // Success for CryptoSoft
+                                if (encryptTimeMs != -1)
+                                {
+                                    totalBytesProcessed += fileSize;
+                                    int cryptoProgression = totalSize > 0 ? (int)((totalBytesProcessed / (double)totalSize) * 100) : 100;
+                                    activeState.Progression = cryptoProgression;
+                                    Application.Current.Dispatcher.Invoke(() => { activeJob.Progression = cryptoProgression; });
+                                }
                             }
                             else
                             {
-                                // Standard file transfer operation
+                                // Standard file transfer operation (Smooth Progress)
                                 Stopwatch swTransfer = Stopwatch.StartNew();
                                 try
                                 {
-                                    File.Copy(file, destFile, true);
+                                    int bufferSize = 1024 * 1024; // 1 MB buffer
+                                    using (FileStream sourceStream = new FileStream(file, FileMode.Open, FileAccess.Read))
+                                    using (FileStream destStream = new FileStream(destFile, FileMode.Create, FileAccess.Write))
+                                    {
+                                        byte[] buffer = new byte[bufferSize];
+                                        int bytesRead;
+                                        while ((bytesRead = sourceStream.Read(buffer, 0, buffer.Length)) > 0)
+                                        {
+                                            cancelToken.ThrowIfCancellationRequested();
+
+                                            // Enforce thread synchronization for user-initiated pauses during chunk copy
+                                            if (!pauseEvent.WaitOne(0))
+                                            {
+                                                Application.Current.Dispatcher.Invoke(() => { activeJob.State = "Paused"; });
+                                                activeState.State = "Paused";
+                                                LoggerService.Instance.WriteState(allStates);
+                                                pauseEvent.WaitOne();
+                                                Application.Current.Dispatcher.Invoke(() => { activeJob.State = "Active"; });
+                                                activeState.State = "Active";
+                                                LoggerService.Instance.WriteState(allStates);
+                                            }
+
+                                            destStream.Write(buffer, 0, bytesRead);
+
+                                            totalBytesProcessed += bytesRead;
+                                            int currentProgression = totalSize > 0 ? (int)((totalBytesProcessed / (double)totalSize) * 100) : 100;
+
+                                            // Update UI and JSON only when percentage changes to avoid lag
+                                            if (currentProgression != activeState.Progression)
+                                            {
+                                                activeState.Progression = currentProgression;
+                                                Application.Current.Dispatcher.Invoke(() => { activeJob.Progression = currentProgression; });
+                                                LoggerService.Instance.WriteState(allStates);
+                                            }
+                                        }
+                                    }
                                     swTransfer.Stop();
                                     transferTimeMs = swTransfer.Elapsed.TotalMilliseconds;
                                 }
@@ -303,14 +359,7 @@ namespace EasySaveWPF.Services
                             activeState.CurrentSourceFile = file;
                             activeState.CurrentTargetFile = destFile;
                             activeState.NbFilesLeftToDo = totalFiles - filesProcessed;
-                            activeState.Progression = (int)((filesProcessed / (double)totalFiles) * 100);
                             activeState.LastActionTimestamp = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
-
-                            // Marshal UI property updates to the main thread
-                            Application.Current.Dispatcher.Invoke(() =>
-                            {
-                                activeJob.Progression = activeState.Progression;
-                            });
 
                             LoggerService.Instance.WriteState(allStates);
                         }
@@ -353,7 +402,10 @@ namespace EasySaveWPF.Services
                     activeState.CurrentSourceFile = "STOPPED";
                     activeState.CurrentTargetFile = "STOPPED";
 
-                    Application.Current.Dispatcher.Invoke(() => { activeJob.Progression = 0; });
+                    Application.Current.Dispatcher.Invoke(() => {
+                        activeJob.Progression = 0;
+                        activeJob.State = "Inactive";
+                    });
                 }
                 else
                 {
@@ -362,7 +414,10 @@ namespace EasySaveWPF.Services
                     activeState.CurrentSourceFile = "";
                     activeState.CurrentTargetFile = "";
 
-                    Application.Current.Dispatcher.Invoke(() => { activeJob.Progression = 100; });
+                    Application.Current.Dispatcher.Invoke(() => {
+                        activeJob.Progression = 0;
+                        activeJob.State = "Inactive";
+                    });
                 }
 
                 activeState.LastActionTimestamp = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");

@@ -48,8 +48,8 @@ namespace EasyLog
                 // 1. Write to LOCAL storage (if configured)
                 if (LogDestination == "Local" || LogDestination == "Both")
                 {
-                    // Create the "Logs" directory to keep the root folder clean
-                    string logsDirectory = "Logs";
+                    // Create the "Logs" directory in AppData to keep it accessible
+                    string logsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EasySave", "Logs");
                     if (!Directory.Exists(logsDirectory))
                     {
                         Directory.CreateDirectory(logsDirectory);
@@ -88,8 +88,8 @@ namespace EasyLog
         {
             lock (_lock)
             {
-                // Create the "State" directory to keep the root folder clean
-                string stateDirectory = "State";
+                // Create the "State" directory in AppData to keep it accessible
+                string stateDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EasySave", "State");
                 if (!Directory.Exists(stateDirectory))
                 {
                     Directory.CreateDirectory(stateDirectory);

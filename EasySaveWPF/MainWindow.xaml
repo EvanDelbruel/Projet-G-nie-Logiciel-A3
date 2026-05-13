@@ -69,6 +69,19 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid Margin="5">
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding State}" Value="Inactive">
+                                                <Setter Property="Visibility" Value="Hidden"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding State}" Value="Stopped">
+                                                <Setter Property="Visibility" Value="Hidden"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
                                 <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progression}" Height="20" Foreground="#2ECC71" Background="#EEEEEE"/>
                                 <TextBlock Text="{Binding Progression, StringFormat={}{0}%}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="Black"/>
                             </Grid>
@@ -87,19 +100,55 @@
                                         Command="{Binding DataContext.PauseCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
                                         CommandParameter="{Binding}" 
                                         Width="25" Height="25" Margin="2" Cursor="Hand" Background="#F1C40F" Foreground="Black" BorderThickness="0"
-                                        ToolTip="Pause"/>
+                                        ToolTip="Pause">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding State}" Value="Active">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
 
                                 <Button Content="▶" 
                                         Command="{Binding DataContext.ResumeCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
                                         CommandParameter="{Binding}" 
                                         Width="25" Height="25" Margin="2" Cursor="Hand" Background="#2ECC71" Foreground="White" BorderThickness="0"
-                                        ToolTip="Play / Resume"/>
+                                        ToolTip="Play / Resume">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding State}" Value="Active">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
 
                                 <Button Content="⏹" 
                                         Command="{Binding DataContext.StopCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
                                         CommandParameter="{Binding}" 
                                         Width="25" Height="25" Margin="2" Cursor="Hand" Background="#E74C3C" Foreground="White" BorderThickness="0"
-                                        ToolTip="Stop"/>
+                                        ToolTip="Stop">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding State}" Value="Active">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding State}" Value="Paused">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </StackPanel>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>

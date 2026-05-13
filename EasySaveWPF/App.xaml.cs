@@ -32,9 +32,12 @@ namespace EasySaveWPF
         // Orchestrates headless backup executions based on standard input argument parsing.
         private async Task ExecuteCommandLineAsync(string[] args)
         {
-            if (!File.Exists("jobs.json")) return;
+            string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EasySave");
+            string jobsFilePath = Path.Combine(appDataPath, "jobs.json");
 
-            string json = File.ReadAllText("jobs.json");
+            if (!File.Exists(jobsFilePath)) return;
+
+            string json = File.ReadAllText(jobsFilePath);
             var allJobs = JsonSerializer.Deserialize<List<BackupJob>>(json) ?? new List<BackupJob>();
 
             if (allJobs.Count == 0) return;

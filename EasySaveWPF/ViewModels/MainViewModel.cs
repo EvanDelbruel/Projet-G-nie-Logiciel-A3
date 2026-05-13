@@ -15,7 +15,7 @@ namespace EasySaveWPF.ViewModels
     public class MainViewModel : ViewModelBase
     {
         // Absolute or relative path defining the persistence layer for application state.
-        private readonly string _jobsFilePath = "jobs.json";
+        private readonly string _jobsFilePath = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData), "EasySave", "jobs.json");
 
         // Data-bound collection representing the persisted state of configured backup routines.
         public ObservableCollection<BackupJob> Jobs { get; set; }
@@ -109,7 +109,7 @@ namespace EasySaveWPF.ViewModels
         // Resolves configuration parameters into memory to initialize singleton services.
         private void LoadSettingsAtStartup()
         {
-            string settingsFilePath = "settings.json";
+            string settingsFilePath = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData), "EasySave", "settings.json");
             if (File.Exists(settingsFilePath))
             {
                 try
@@ -194,7 +194,20 @@ namespace EasySaveWPF.ViewModels
         private void ExecuteResume(object parameter)
         {
             if (parameter is BackupJob job)
-                new BackupService().ResumeJob(job.Name);
+            {
+                if (job.State == "Inactive" || job.State == "Stopped" || string.IsNullOrEmpty(job.State))
+                {
+                    // Start the job if it is currently inactive
+                    var allJobs = new List<BackupJob>(Jobs);
+                    BackupService service = new BackupService();
+                    _ = service.ExecuteBackupAsync(job, allJobs);
+                }
+                else
+                {
+                    // Resume the job if it is currently paused
+                    new BackupService().ResumeJob(job.Name);
+                }
+            }
         }
 
         // Invokes the CancellationToken to gracefully terminate the asynchronous operation.
@@ -242,6 +255,8 @@ namespace EasySaveWPF.ViewModels
         private void SaveJobs()
         {
             string json = JsonSerializer.Serialize(Jobs, new JsonSerializerOptions { WriteIndented = true });
+            string dir = Path.GetDirectoryName(_jobsFilePath);
+            if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
             File.WriteAllText(_jobsFilePath, json);
         }
     }

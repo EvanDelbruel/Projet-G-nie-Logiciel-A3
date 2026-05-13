@@ -10,6 +10,20 @@ namespace EasySaveWPF.Models
         public string TargetDirectory { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty;
 
+        private string _state = "Inactive";
+        public string State
+        {
+            get => _state;
+            set
+            {
+                if (_state != value)
+                {
+                    _state = value;
+                    OnPropertyChanged(nameof(State));
+                }
+            }
+        }
+
         // The progress parameter
         private int _progression;
         public int Progression
