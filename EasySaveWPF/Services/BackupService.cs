@@ -252,7 +252,7 @@ namespace EasySaveWPF.Services
                                 Stopwatch swCrypto = Stopwatch.StartNew();
                                 try
                                 {
-                                    string cryptoPath = Path.GetFullPath(@"CryptoSoftTool\CryptoSoft.exe");
+                                    string cryptoPath = Path.GetFullPath(@"..\..\..\..\CryptoSoft\bin\Debug\net8.0\CryptoSoft.exe");
                                     if (!File.Exists(cryptoPath))
                                     {
                                         Console.WriteLine($"[ERROR] Missing executable at path: {cryptoPath}");

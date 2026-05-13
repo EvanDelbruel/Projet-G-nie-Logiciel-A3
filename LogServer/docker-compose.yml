@@ -7,3 +7,5 @@ services:
     ports:
       - "11000:11000"
     restart: unless-stopped
+    volumes:
+      - ./DockerLogs:/app/DockerLogs

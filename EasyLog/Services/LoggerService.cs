@@ -38,7 +38,7 @@ namespace EasyLog
 
         public string LogDestination { get; set; } = "Local"; // Can be: "Local", "Docker", or "Both"
         public string DockerIp { get; set; } = "127.0.0.1";
-        public int DockerPort { get; set; } = 8080;
+        public int DockerPort { get; set; } = 11000;
 
         // Private constructor to enforce Singleton pattern
         private LoggerService() { }
