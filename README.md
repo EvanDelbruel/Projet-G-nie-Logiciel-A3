@@ -1,101 +1,101 @@
 # EasySave v3.0 - Backup Management System
 
-**EasySave** est une solution logicielle professionnelle de sauvegarde de données éditée par **ProSoft**. Cette version 3.0 marque une évolution majeure en introduisant le traitement parallèle des données, une gestion fine des priorités réseau et une centralisation des journaux d'activité via Docker.
+**EasySave** is a professional data backup software solution published by **ProSoft**. This 3.0 version marks a major evolution by introducing parallel data processing, fine-grained network priority management, and centralized activity logging via Docker.
 
 ---
 
-## Fonctionnalités principales
+## Key Features
 
-### Gestion des sauvegardes
-* **Travaux illimités** : Création et configuration d'un nombre illimité de travaux de sauvegarde.
-* **Types de sauvegarde** : Support des sauvegardes complètes et différentielles.
-* **Sauvegarde en parallèle** : Abandon du mode séquentiel pour une exécution simultanée des travaux via une architecture asynchrone (Task Parallel Library).
+### Backup Management
+* **Unlimited Jobs**: Create and configure an unlimited number of backup jobs.
+* **Backup Types**: Support for both full and differential backups.
+* **Parallel Execution**: Transition from sequential processing to simultaneous job execution using an asynchronous architecture (Task Parallel Library).
 
-### Contrôle et interaction en temps réel
-* **Interface Graphique (WPF)** : IHM moderne basée sur l'architecture MVVM permettant un suivi visuel de la progression.
-* **Contrôle individuel** : Possibilité de mettre en pause, de reprendre ou d'arrêter chaque travail indépendamment via des contrôleurs de tâches dédiés.
-* **Indicateurs de progression** : Calcul en temps réel du pourcentage d'avancement, du nombre de fichiers restants et de la taille totale traitée, mis à jour via le Dispatcher WPF.
+### Real-Time Control & Interaction
+* **Graphical Interface (WPF)**: Modern GUI based on the MVVM architecture allowing visual progress tracking.
+* **Individual Control**: Ability to pause, resume, or stop each job independently using dedicated task controllers.
+* **Progress Indicators**: Real-time calculation of the completion percentage, remaining file count, and total processed size, updated seamlessly via the WPF Dispatcher.
 
-### Optimisation et sécurité
-* **Gestion des priorités** : Priorisation des transferts selon les extensions de fichiers définies par l'utilisateur pour garantir le traitement immédiat des données critiques.
-* **Limitation des fichiers volumineux** : Système de verrouillage par sémaphore empêchant le transfert simultané de plusieurs fichiers dépassant un seuil de taille configurable (n Ko) afin de préserver la bande passante.
-* **Détection du logiciel métier** : Suspension automatique et reprise transparente des transferts si un logiciel spécifique est détecté en cours d'exécution.
-* **Cryptage CryptoSoft** : Intégration du module de cryptage XOR externe, protégé par un Mutex système pour garantir une exécution mono-instance strictement contrôlée.
+### Optimization & Security
+* **Priority Management**: Transfer prioritization based on user-defined file extensions to guarantee immediate processing of critical data.
+* **Large File Limitation**: Semaphore-based locking system preventing simultaneous transfers of multiple files exceeding a configurable size threshold (in KB) to preserve bandwidth.
+* **Business Software Detection**: Automatic suspension and transparent resumption of transfers if specific business software is detected running.
+* **CryptoSoft Encryption**: Integration of an external XOR encryption module, protected by a system Mutex to guarantee strictly controlled mono-instance execution.
 
-### Journalisation et Centralisation
-* **Multi-format** : Exportation des logs journaliers au format JSON ou XML selon la configuration choisie.
-* **Centralisation Docker** : Service réseau TCP permettant l'envoi des logs vers un serveur centralisé (Docker) avec identification de l'utilisateur et de la machine source pour une traçabilité complète.
-
----
-
-## Architecture technique
-
-Le projet est développé en **C#** sous le framework **.NET 8.0** et suit rigoureusement les principes du **Génie Logiciel**.
-
-### Design Patterns utilisés
-* **MVVM (Model-View-ViewModel)** : Séparation stricte entre la logique métier, les modèles de données et l'interface utilisateur.
-* **Singleton** : Appliqué au `LoggerService` pour garantir un point d'accès unique et thread-safe aux opérations d'écriture de journaux.
-* **Command Pattern** : Utilisation de `RelayCommand` pour lier les actions de l'IHM aux méthodes du ViewModel.
-
-### Gestion des accès concurrentiels
-* **SemaphoreSlim** : Utilisé dans le `SyncManager` pour limiter les accès simultanés à CryptoSoft et restreindre le transfert de fichiers volumineux.
-* **ManualResetEvent** : Implémentation de la barrière de synchronisation pour le système de pause/reprise des threads.
-* **CancellationToken** : Gestion de l'annulation sécurisée des tâches de fond lors de l'arrêt d'un travail par l'utilisateur.
+### Logging & Centralization
+* **Multi-Format**: Export daily logs in JSON or XML format based on chosen configuration.
+* **Docker Centralization**: TCP network service allowing logs to be sent to a centralized server (Docker) with user and source machine identification for full traceability.
 
 ---
 
-## Structure du projet
+## Technical Architecture
 
-* **EasySaveWPF.Models** : Définition des structures de données (`BackupJob`, `JobController`, `LogModel`, `StateModel`).
-* **EasySaveWPF.ViewModels** : Logique de présentation et gestion des commandes utilisateur via `MainViewModel`.
-* **EasySaveWPF.Services** : Orchestration des sauvegardes (`BackupService`) et gestion globale de la synchronisation (`SyncManager`).
-* **EasyLog.dll** : Bibliothèque partagée encapsulant la logique de journalisation locale et distante.
-* **CryptoSoft** : Module externe de sécurité avec gestion de l'exclusion mutuelle par Mutex.
-* **LogServer** : Serveur TCP asynchrone de réception et d'agrégation des logs centralisés.
+The project is developed in **C#** under the **.NET 8.0** framework and strictly follows **Software Engineering** principles.
+
+### Design Patterns Used
+* **MVVM (Model-View-ViewModel)**: Strict separation between business logic, data models, and user interface.
+* **Singleton**: Applied to the `LoggerService` to guarantee a single, thread-safe access point for log writing operations.
+* **Command Pattern**: Usage of `RelayCommand` to bind UI actions to ViewModel methods.
+
+### Concurrency Management
+* **SemaphoreSlim**: Used in the `SyncManager` to limit simultaneous access to CryptoSoft and restrict the transfer of large files.
+* **ManualResetEvent**: Implementation of synchronization barriers for the thread pause/resume system.
+* **CancellationToken**: Management of safe background task cancellation when a user stops a job.
 
 ---
 
-## Installation et configuration
+## Project Structure
 
-### Prérequis
+* **EasySaveWPF.Models**: Definition of data structures (`BackupJob`, `JobController`, `LogModel`, `StateModel`).
+* **EasySaveWPF.ViewModels**: Presentation logic and user command management via `MainViewModel`.
+* **EasySaveWPF.Services**: Backup orchestration (`BackupService`) and global synchronization management (`SyncManager`).
+* **EasyLog.dll**: Shared library encapsulating local and remote logging logic.
+* **CryptoSoft**: External security module with mutual exclusion management via OS Mutex.
+* **LogServer**: Asynchronous TCP server for receiving and aggregating centralized logs (Docker).
+
+---
+
+## Installation & Configuration
+
+### Prerequisites
 * Microsoft Visual Studio 2022.
-* SDK .NET 8.0 ou supérieur.
-* Docker (pour le déploiement du serveur de logs centralisé).
+* .NET 8.0 SDK or higher.
+* Docker (for deploying the centralized log server).
 
 ### Configuration (`settings.json`)
-L'application est pilotée par un fichier de configuration permettant de définir les paramètres suivants :
-* `BusinessSoftware` : Nom du processus déclenchant la mise en pause automatique.
-* `CryptoExtensions` : Liste des extensions de fichiers à traiter par CryptoSoft.
-* `PriorityExtensions` : Extensions prioritaires à traiter en début de file d'attente.
-* `MaxFileSizeKb` : Seuil de taille (en Ko) pour la restriction de transfert simultané.
-* `LogFormat` : Format de sortie (`JSON` ou `XML`).
-* `LogDestination` : Destination des flux (`Local`, `Docker`, ou `Both`).
+The application is driven by a configuration file allowing you to define the following parameters:
+* `BusinessSoftware`: Process name triggering automatic pause.
+* `CryptoExtensions`: List of file extensions to be processed by CryptoSoft.
+* `PriorityExtensions`: Priority extensions to be processed at the beginning of the queue.
+* `MaxFileSizeKb`: Size threshold (in KB) for simultaneous transfer restriction.
+* `LogFormat`: Output format (`JSON` or `XML`).
+* `LogDestination`: Stream destination (`Local`, `Docker`, or `Both`).
 
 ---
 
-## Utilisation
+## Usage
 
-### Mode Graphique
-Lancez `EasySaveWPF.exe`. L'interface principale permet de gérer la liste des travaux et de piloter les exécutions. Les paramètres généraux sont accessibles via le bouton de configuration dédié.
+### Graphical Mode
+Launch `EasySaveWPF.exe`. The main interface allows you to manage the job list and control executions. General settings are accessible via the dedicated configuration button.
 
-### Mode Ligne de Commande (CLI)
-Le logiciel prend en charge l'exécution directe via des arguments de lancement :
-* `EasySave.exe 1-3` : Exécution automatique des travaux 1 à 3.
-* `EasySave.exe 1;3;5` : Exécution sélective des travaux indiqués.
-
----
-
-## Évolutions futures (V4.0)
-
-* Analyse comparative de performance entre sauvegardes parallèles et séquentielles selon les types de supports (SSD vs HDD).
-* Implémentation d'un algorithme de compression native avant transfert.
-* Intégration de protocoles de transfert distants (SFTP/Cloud Storage).
-* Chiffrement asymétrique avancé pour la protection des données sensibles.
+### Command Line Interface (CLI) Mode
+The software supports direct execution via launch arguments:
+* `EasySave.exe 1-3`: Automatic execution of jobs 1 to 3.
+* `EasySave.exe 1;3;5`: Selective execution of the indicated jobs.
 
 ---
 
-## Licence
+## Future Developments (V4.0)
 
-Tous droits réservés. Développé par l'équipe projet ProSoft.
+* Performance benchmarking between parallel and sequential backups according to storage types (SSD vs HDD).
+* Implementation of native compression algorithm prior to transfer.
+* Integration of remote transfer protocols (SFTP/Cloud Storage).
+* Advanced asymmetric encryption for sensitive data protection.
 
-*Note : ProSoft est une entreprise fictive utilisée dans un cadre pédagogique.*
+---
+
+## License
+
+All rights reserved. Developed by the ProSoft project team.
+
+*Note: ProSoft is a fictitious company used for educational purposes.*
