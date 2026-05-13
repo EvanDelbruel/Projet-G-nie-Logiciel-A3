@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Threading; // Required for Mutex
@@ -31,7 +31,7 @@ namespace CryptoSoft
                 string sourceFile = args[0];
                 string targetFile = args[1];
 
-                // --- TA SUPERBE IDÉE : CONFIG.TXT ---
+                // --- ENCRYPTION CONFIGURATION ---
                 // Retrieve the encryption key from a configuration file
                 string appDirectory = AppDomain.CurrentDomain.BaseDirectory;
                 string configPath = Path.Combine(appDirectory, "config.txt");
