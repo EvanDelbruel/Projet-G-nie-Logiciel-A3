@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Windows.Input;
 
 namespace EasySaveWPF.ViewModels
 {
+    // DESIGN PATTERN: Command Pattern
     // Implements the ICommand interface to route commands from the WPF UI to methods in the ViewModel
     public class RelayCommand : ICommand
     {

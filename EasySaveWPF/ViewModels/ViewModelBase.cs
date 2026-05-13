@@ -1,8 +1,9 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace EasySaveWPF.ViewModels
 {
+    // DESIGN PATTERN: MVVM (ViewModel Layer) & Observer Pattern
     // Base class for ViewModels providing standard property change notification for WPF data binding
     public class ViewModelBase : INotifyPropertyChanged
     {

@@ -2,6 +2,7 @@ using System.ComponentModel; // Essential for the UI
 
 namespace EasySaveWPF.Models
 {
+    // DESIGN PATTERN: MVVM (Model Layer) & Observer Pattern
     // Implementing INotifyPropertyChanged is MANDATORY for WPF to update the progress bar in real-time
     public class BackupJob : INotifyPropertyChanged
     {
